@@ -8,9 +8,13 @@ import {
 	type HeatingSchedulesConfiguration,
 } from './configuration';
 
+/** Editable schedule configuration submitted by the configuration dialog. */
 export interface HeatingScheduleConfigurationPatch {
+	/** User-facing schedule name. */
 	name: string;
+	/** Setpoint and feedback mappings submitted by the dialog. */
 	setpointMappings: unknown[];
+	/** Heating modes submitted by the dialog. */
 	heatingModes: unknown[];
 }
 
@@ -189,6 +193,7 @@ export function removeScheduleFromConfiguration(
  * @param configuration current configuration
  * @param id stable schedule ID
  * @param patch submitted schedule configuration
+ * @param validNumericStateIds optional set of existing number state IDs
  */
 export function updateScheduleConfiguration(
 	configuration: HeatingSchedulesConfiguration,

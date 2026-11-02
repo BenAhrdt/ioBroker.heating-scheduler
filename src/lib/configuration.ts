@@ -19,10 +19,20 @@ export const DEFAULT_HEATING_MODE_START_TIME = '00:00';
 export const DEFAULT_HEATING_MODE_TEMPERATURE = 20;
 export const DEFAULT_HEATING_MODE_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+/**
+ * Returns true when the value is a supported feedback mode.
+ *
+ * @param value candidate value to validate
+ */
 export function isFeedbackMode(value: unknown): value is FeedbackMode {
 	return value === 0 || value === 1 || value === 2;
 }
 
+/**
+ * Returns true when the value is a supported weekday selection mode.
+ *
+ * @param value candidate value to validate
+ */
 export function isWeekdaySelection(value: unknown): value is WeekdaySelection {
 	return value === 0 || value === 1 || value === 2;
 }
@@ -465,12 +475,21 @@ export function normalizeConfiguration(value: unknown): HeatingSchedulesConfigur
 	};
 }
 
-/** Returns true when the configuration has no configured schedules. */
+/**
+ * Returns true when the configuration has no configured schedules.
+ *
+ * @param configuration configuration to inspect
+ */
 export function isEmptyConfiguration(configuration: HeatingSchedulesConfiguration): boolean {
 	return configuration.schedules.length === 0;
 }
 
-/** Returns the next stable technical schedule ID and the following counter. */
+/**
+ * Returns the next stable technical schedule ID and the following counter.
+ *
+ * @param nextScheduleNumber next number proposed by the configuration
+ * @param usedIds technical schedule IDs that are already in use
+ */
 export function createScheduleId(
 	nextScheduleNumber: number,
 	usedIds: ReadonlySet<string>,
@@ -484,7 +503,13 @@ export function createScheduleId(
 	return { id, nextScheduleNumber: number + 1 };
 }
 
-/** Returns the next stable child ID and the following per-schedule counter. */
+/**
+ * Returns the next stable child ID and the following per-schedule counter.
+ *
+ * @param prefix child ID prefix to generate
+ * @param nextNumber next number proposed by the schedule
+ * @param usedIds child IDs that are already in use
+ */
 export function createChildId(
 	prefix: 'mapping' | 'mode',
 	nextNumber: number,
