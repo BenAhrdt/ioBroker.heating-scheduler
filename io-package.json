@@ -1,0 +1,115 @@
+{
+	"common": {
+		"name": "heating-scheduler",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "Heating Scheduler",
+			"de": "Heizungsplaner",
+			"ru": "Планировщик отопления",
+			"pt": "Agendador de aquecimento",
+			"nl": "Verwarmingsplanner",
+			"fr": "Planificateur de chauffage",
+			"it": "Pianificatore del riscaldamento",
+			"es": "Programador de calefacción",
+			"pl": "Harmonogram ogrzewania",
+			"uk": "Планувальник опалення",
+			"zh-cn": "供暖计划程序"
+		},
+		"desc": {
+			"en": "Create and manage heating schedules for your thermostats",
+			"de": "Erstellen und verwalten Sie Heizpläne für Ihre Thermostate",
+			"ru": "Создавайте и управляйте расписаниями отопления для ваших термостатов",
+			"pt": "Crie e gerencie agendamentos de aquecimento para seus termostatos",
+			"nl": "Maak en beheer verwarmingsschema's voor uw thermostaten",
+			"fr": "Créez et gérez des programmes de chauffage pour vos thermostats",
+			"it": "Crea e gestisci programmi di riscaldamento per i tuoi termostati",
+			"es": "Cree y gestione horarios de calefacción para sus termostatos",
+			"pl": "Twórz i zarządzaj harmonogramami ogrzewania dla termostatów",
+			"uk": "Створюйте та керуйте розкладами опалення для термостатів",
+			"zh-cn": "为您的恒温器创建和管理供暖计划"
+		},
+		"authors": ["BenAhrdt <github@ben-schmidt.net>"],
+		"keywords": ["heating", "modes", "thermostat", "schedule"],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "heating-scheduler.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/BenAhrdt/ioBroker.heating-scheduler/main/admin/heating-scheduler.png",
+		"readme": "https://github.com/BenAhrdt/ioBroker.heating-scheduler/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "climate-control",
+		"compact": true,
+		"connectionType": "local",
+		"dataSource": "push",
+		"messagebox": true,
+		"supportedMessages": {
+			"deviceManager": true
+		},
+		"adminUI": {
+			"config": "json"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=8.2.11"
+			}
+		]
+	},
+	"native": {
+		"configurationBackupDelayMinutes": 60
+	},
+	"objects": [],
+	"instanceObjects": [
+		{
+			"_id": "info",
+			"type": "channel",
+			"common": {
+				"name": {
+					"en": "Information",
+					"de": "Information"
+				}
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.connection",
+			"type": "state",
+			"common": {
+				"role": "indicator.connected",
+				"name": {
+					"en": "Device or service connected",
+					"de": "Gerät oder Dienst verbunden"
+				},
+				"type": "boolean",
+				"read": true,
+				"write": false,
+				"def": false
+			},
+			"native": {}
+		}
+	]
+}

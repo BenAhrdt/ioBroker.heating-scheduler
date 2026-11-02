@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/configuration-backup.ts"],
+  "sourcesContent": ["import { isDeepStrictEqual } from 'node:util';\nimport { isEmptyConfiguration, normalizeConfiguration, type HeatingSchedulesConfiguration } from './configuration';\n\n/**\n * Returns whether the exact schedules-folder native differs from its backup.\n *\n * @param schedulesNative current schedules-folder native\n * @param backup stored instance backup\n */\nexport function configurationBackupNeedsUpdate(\n\tschedulesNative: HeatingSchedulesConfiguration,\n\tbackup: unknown,\n): boolean {\n\treturn !isDeepStrictEqual(schedulesNative, backup);\n}\n\n/**\n * Validates and normalizes an instance backup for restoration.\n * Empty and malformed backups are intentionally not restorable.\n *\n * @param value stored instance backup candidate\n */\nexport function getRestorableConfigurationBackup(value: unknown): HeatingSchedulesConfiguration | undefined {\n\tconst configuration = normalizeConfiguration(value);\n\treturn isEmptyConfiguration(configuration) ? undefined : configuration;\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,uBAAkC;AAClC,2BAAiG;AAQ1F,SAAS,+BACf,iBACA,QACU;AACV,SAAO,KAAC,oCAAkB,iBAAiB,MAAM;AAClD;AAQO,SAAS,iCAAiC,OAA2D;AAC3G,QAAM,oBAAgB,6CAAuB,KAAK;AAClD,aAAO,2CAAqB,aAAa,IAAI,SAAY;AAC1D;",
+  "names": []
+}

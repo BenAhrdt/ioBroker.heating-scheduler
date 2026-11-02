@@ -1,0 +1,109 @@
+{
+	"i18n": true,
+	"type": "panel",
+	"items": {
+		"_configurationInfo": {
+			"type": "staticText",
+			"text": "Create and manage heating schedules in the Device Manager tab on the left. Each schedule contains its heating modes.",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12,
+			"style": {
+				"fontSize": 16,
+				"lineHeight": 1.5
+			}
+		},
+		"_configurationLink": {
+			"type": "staticLink",
+			"label": "Open Device Manager",
+			"href": "#tab-devicemanager/tab/heating-scheduler.0",
+			"target": "_self",
+			"button": true,
+			"variant": "contained",
+			"color": "primary",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 8,
+			"lg": 6,
+			"xl": 6,
+			"controlStyle": {
+				"backgroundColor": "#0f4c81",
+				"color": "#ffffff"
+			}
+		},
+		"backupHeader": {
+			"type": "header",
+			"text": "Schedule configuration backup",
+			"size": 2,
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
+		},
+		"configurationBackupDelayMinutes": {
+			"type": "number",
+			"label": "Backup delay in minutes",
+			"help": "The timer starts when the adapter starts and restarts after every schedule configuration change. Set to 0 to disable automatic backups.",
+			"min": 0,
+			"max": 35791,
+			"step": 1,
+			"default": 60,
+			"newLine": true,
+			"xs": 12,
+			"sm": 8,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
+		"backupNow": {
+			"type": "sendTo",
+			"command": "backupScheduleConfiguration",
+			"label": "Compare and back up now",
+			"variant": "contained",
+			"color": "primary",
+			"showProcess": true,
+			"result": {
+				"backupUpdated": "The schedule configuration backup was updated.",
+				"backupCurrent": "The schedule configuration backup is already up to date."
+			},
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
+		"restoreBackup": {
+			"type": "sendTo",
+			"command": "restoreScheduleConfiguration",
+			"label": "Restore schedule configuration backup",
+			"variant": "outlined",
+			"color": "secondary",
+			"showProcess": true,
+			"confirm": {
+				"condition": "true",
+				"title": "Restore schedule configuration?",
+				"text": "The current schedule configuration will be replaced by the backup.",
+				"ok": "Restore",
+				"cancel": "Cancel",
+				"type": "warning"
+			},
+			"result": {
+				"backupRestored": "The schedule configuration backup was restored.",
+				"backupMissing": "No schedule configuration backup is available."
+			},
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		}
+	}
+}
