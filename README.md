@@ -1,4 +1,4 @@
-![Logo](admin/heating-scheduler.png)
+![Heating Scheduler logo](admin/heating-scheduler.png)
 
 # ioBroker.heating-scheduler
 
@@ -11,121 +11,58 @@
 
 **Tests:** ![Test and Release](https://github.com/BenAhrdt/ioBroker.heating-scheduler/workflows/Test%20and%20Release/badge.svg)
 
-## heating-scheduler adapter for ioBroker
+## Heating Scheduler
 
-Create and manage heating schedules for your thermostats
+Heating Scheduler creates and manages configurable heating schedules for thermostats in ioBroker.
 
-## Developer manual
+The adapter is currently in early development. Heating modes belong to a heating schedule and are not independent devices.
 
-This section is intended for the developer. It can be deleted later.
+## Features
 
-### DISCLAIMER
+- Manage multiple heating schedules through the ioBroker Device Manager.
+- Configure setpoint and optional feedback state mappings.
+- Define heating modes with weekdays, start times, start dates and target temperatures.
+- Enable or disable a complete heating schedule or individual heating modes.
+- Use translated schedule and heating-mode names through the object metadata.
+- Keep the authoritative configuration in the versioned schedules structure.
+- Create delayed instance-native configuration backups and restore them when needed.
 
-Please make sure that you consider copyrights and trademarks when you use names or logos of a company and add a disclaimer to your README.
-You can check other adapters for examples or ask in the developer community. Using a name or logo of a company without permission may cause legal problems for you.
+## Configuration model
 
-### Getting started
+The adapter uses schema version 3. A schedule is represented by a valid ioBroker device object below the technical schedules root because ioBroker does not provide a dedicated schedule object type.
 
-You are almost done, only a few steps left:
+    schedules
+    └── schedule_001
+        ├── active
+        ├── setpointMappings
+        └── heatingModes
+            └── mode_001
 
-1. Create a new repository on GitHub with the name `ioBroker.heating-scheduler`
-1. Initialize the current folder as a new git repository:
-    ```bash
-    git init -b main
-    git add .
-    git commit -m "Initial commit"
-    ```
-1. Link your local repository with the one on GitHub:
+Heating modes remain children of their schedule. There is no migration from earlier configuration formats because this adapter has no productive legacy installations.
 
-    ```bash
-    git remote add origin https://github.com/BenAhrdt/ioBroker.heating-scheduler
-    ```
+## Development
 
-1. Push all files to the GitHub repo:
-    ```bash
-    git push origin main
-    ```
-1. Add a new secret under https://github.com/BenAhrdt/ioBroker.heating-scheduler/settings/secrets. It must be named `AUTO_MERGE_TOKEN` and contain a personal access token with push access to the repository, e.g. yours. You can create a new token under https://github.com/settings/tokens.
+Install the dependencies and use the following scripts from the adapter directory:
 
-1. Head over to [src/main.ts](src/main.ts) and start programming!
+    npm install
+    npm run build
+    npm run check
+    npm run lint
+    npm test
 
-### Best Practices
+For local ioBroker testing, use the configured dev-server profile:
 
-We've collected some [best practices](https://github.com/ioBroker/ioBroker.repositories#development-and-coding-best-practices) regarding ioBroker development and coding in general. If you're new to ioBroker or Node.js, you should
-check them out. If you're already experienced, you should also take a look at them - you might learn something new :)
+    npm run dev-server -- watch default
 
-### State Roles
+## Publishing
 
-When creating state objects, it is important to use the correct role for the state. The role defines how the state should be interpreted by visualizations and other adapters. For a list of available roles and their meanings, please refer to the [state roles documentation](https://www.iobroker.net/#en/documentation/dev/stateroles.md).
+Releases use semantic version tags such as v0.1.0. The GitHub Actions workflow runs type checks and adapter tests for pushes and tags. For tag-based npm publishing, npm Trusted Publishing must be configured for the repository and workflow test-and-release.yml.
 
-**Important:** Do not invent your own custom role names. If you need a role that is not part of the official list, please contact the ioBroker developer community for guidance and discussion about adding new roles.
+The release script updates package.json, io-package.json, the changelog and the Git tag:
 
-### Scripts in `package.json`
+    npm run release
 
-Several npm scripts are predefined for your convenience. You can run them using `npm run <scriptname>`
-
-| Script name        | Description                                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `build`            | Compile the TypeScript sources.                                                                                                                                          |
-| `watch`            | Compile the TypeScript sources and watch for changes.                                                                                                                    |
-| `test:ts`          | Executes the tests you defined in `*.test.ts` files.                                                                                                                     |
-| `test:package`     | Ensures your `package.json` and `io-package.json` are valid.                                                                                                             |
-| `test:integration` | Tests the adapter startup with an actual instance of ioBroker.                                                                                                           |
-| `test`             | Performs a minimal test run on package files and your tests.                                                                                                             |
-| `check`            | Performs a type-check on your code (without compiling anything).                                                                                                         |
-| `lint`             | Runs `ESLint` to check your code for formatting errors and potential bugs.                                                                                               |
-| `translate`        | Translates texts in your adapter to all required languages, see [`@iobroker/adapter-dev`](https://github.com/ioBroker/adapter-dev#manage-translations) for more details. |
-| `release`          | Creates a new release, see [`@alcalzone/release-script`](https://github.com/AlCalzone/release-script#usage) for more details.                                            |
-
-### Configuring the compilation
-
-The adapter template uses [esbuild](https://esbuild.github.io/) to compile TypeScript and/or React code. You can configure many compilation settings
-either in `tsconfig.json` or by changing options for the build tasks. These options are described in detail in the
-[`@iobroker/adapter-dev` documentation](https://github.com/ioBroker/adapter-dev#compile-adapter-files).
-
-### Writing tests
-
-When done right, testing code is invaluable, because it gives you the
-confidence to change your code while knowing exactly if and when
-something breaks. A good read on the topic of test-driven development
-is https://hackernoon.com/introduction-to-test-driven-development-tdd-61a13bc92d92.
-Although writing tests before the code might seem strange at first, but it has very
-clear upsides.
-
-The template provides you with basic tests for the adapter startup and package files.
-It is recommended that you add your own tests into the mix.
-
-### Publishing the adapter
-
-Using GitHub Actions, you can enable automatic releases on npm whenever you push a new git tag that matches the form
-`v<major>.<minor>.<patch>`. We **strongly recommend** that you do. The necessary steps are described in `.github/workflows/test-and-release.yml`.
-
-Since you installed the release script, you can create a new
-release simply by calling:
-
-```bash
-npm run release
-```
-
-Additional command line options for the release script are explained in the
-[release-script documentation](https://github.com/AlCalzone/release-script#command-line).
-
-To get your adapter released in ioBroker, please refer to the documentation
-of [ioBroker.repositories](https://github.com/ioBroker/ioBroker.repositories#requirements-for-adapter-to-get-added-to-the-latest-repository).
-
-### Test the adapter manually with dev-server
-
-Since you set up `dev-server`, you can use it to run, test and debug your adapter.
-
-You may start `dev-server` by calling from your dev directory:
-
-```bash
-dev-server watch
-```
-
-The ioBroker.admin interface will then be available at http://localhost:undefined/
-
-Please refer to the [`dev-server` documentation](https://github.com/ioBroker/dev-server#command-line) for more details.
+See the [ioBroker publishing documentation](https://github.com/ioBroker/ioBroker.docs/blob/master/docs/en/dev/adapterpublish.md) and the [npm Trusted Publishing documentation](https://docs.npmjs.com/trusted-publishers/) for details.
 
 ## Changelog
 
@@ -133,11 +70,16 @@ Please refer to the [`dev-server` documentation](https://github.com/ioBroker/dev
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Updated the adapter logo and README documentation.
+- Prepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.
+
 ### 0.1.0 (2026-11-02)
 
 - (BenAhrdt) Added the versioned Heating Scheduler schedule configuration foundation with stable technical schedule IDs.
 - (BenAhrdt) Added the neutral Device Manager integration for adding, editing, renaming, and deleting schedules.
-- (BenAhrdt) Added authoritative persistence in the `schedules` object with normalization and schema-version support.
+- (BenAhrdt) Added authoritative persistence in the schedules object with normalization and schema-version support.
 - (BenAhrdt) Added delayed instance-native configuration backup with deep-change detection and restore support.
 - (BenAhrdt) Added responsive Admin configuration for the Device Manager link, backup delay, and manual backup actions.
 - (BenAhrdt) Added schema-versioned setpoint/feedback mappings and Heating Modes accordions with per-mode runtime activation states.
