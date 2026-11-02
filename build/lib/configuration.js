@@ -25,11 +25,13 @@ __export(configuration_exports, {
   DEFAULT_HEATING_MODE_START_TIME: () => DEFAULT_HEATING_MODE_START_TIME,
   DEFAULT_HEATING_MODE_TEMPERATURE: () => DEFAULT_HEATING_MODE_TEMPERATURE,
   DEFAULT_HEATING_MODE_WEEKDAYS: () => DEFAULT_HEATING_MODE_WEEKDAYS,
+  DEFAULT_HEATING_TYPE: () => DEFAULT_HEATING_TYPE,
   DEFAULT_WEEKDAY_SELECTION: () => DEFAULT_WEEKDAY_SELECTION,
   createChildId: () => createChildId,
   createScheduleId: () => createScheduleId,
   isEmptyConfiguration: () => isEmptyConfiguration,
   isFeedbackMode: () => isFeedbackMode,
+  isHeatingType: () => isHeatingType,
   isWeekdaySelection: () => isWeekdaySelection,
   migrateConfiguration: () => migrateConfiguration,
   normalizeConfiguration: () => normalizeConfiguration,
@@ -39,6 +41,7 @@ module.exports = __toCommonJS(configuration_exports);
 const CURRENT_SCHEMA_VERSION = 3;
 const DEFAULT_FEEDBACK_MODE = 1;
 const DEFAULT_WEEKDAY_SELECTION = 1;
+const DEFAULT_HEATING_TYPE = "radiator";
 const DEFAULT_DEVIATION_COUNT_BEFORE_WRITE = 3;
 const DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES = 5;
 const DEFAULT_HEATING_MODE_START_TIME = "00:00";
@@ -49,6 +52,9 @@ function isFeedbackMode(value) {
 }
 function isWeekdaySelection(value) {
   return value === 0 || value === 1 || value === 2;
+}
+function isHeatingType(value) {
+  return value === "radiator" || value === "underfloorHeating";
 }
 const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const CHILD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -102,6 +108,9 @@ function normalizeWeekdaySelection(value) {
     return 1;
   }
   return DEFAULT_WEEKDAY_SELECTION;
+}
+function normalizeHeatingType(value) {
+  return isHeatingType(value) ? value : DEFAULT_HEATING_TYPE;
 }
 function normalizeDate(value) {
   const date = asTrimmedString(value);
@@ -223,6 +232,7 @@ function normalizeSchedule(value) {
   return {
     id,
     name,
+    heatingType: normalizeHeatingType(value.heatingType),
     setpointMappings: mappings.items,
     heatingModes: modes.items,
     nextSetpointMappingNumber: mappings.nextNumber,
@@ -298,6 +308,9 @@ function validateConfiguration(value) {
         errors.push(`schedules[${index}].name is duplicated.`);
       } else {
         names.add(name.toLocaleLowerCase());
+      }
+      if (schedule.heatingType !== void 0 && !isHeatingType(schedule.heatingType)) {
+        errors.push(`schedules[${index}].heatingType is invalid.`);
       }
       if (!Array.isArray(schedule.setpointMappings)) {
         errors.push(`schedules[${index}].setpointMappings must be an array.`);
@@ -382,11 +395,13 @@ function createChildId(prefix, nextNumber, usedIds) {
   DEFAULT_HEATING_MODE_START_TIME,
   DEFAULT_HEATING_MODE_TEMPERATURE,
   DEFAULT_HEATING_MODE_WEEKDAYS,
+  DEFAULT_HEATING_TYPE,
   DEFAULT_WEEKDAY_SELECTION,
   createChildId,
   createScheduleId,
   isEmptyConfiguration,
   isFeedbackMode,
+  isHeatingType,
   isWeekdaySelection,
   migrateConfiguration,
   normalizeConfiguration,

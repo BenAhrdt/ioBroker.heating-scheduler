@@ -6,11 +6,13 @@
  */
 import * as utils from '@iobroker/adapter-core';
 import {
+	DEFAULT_HEATING_TYPE,
 	isFeedbackMode,
 	isEmptyConfiguration,
 	isWeekdaySelection,
 	normalizeConfiguration,
 	type FeedbackMode,
+	type HeatingType,
 	type HeatingSchedulesConfiguration,
 	type HeatingSchedule,
 	type WeekdaySelection,
@@ -135,9 +137,9 @@ class HeatingScheduler extends utils.Adapter {
 		);
 	}
 
-	public async addHeatingSchedule(name: string): Promise<string> {
+	public async addHeatingSchedule(name: string, heatingType: HeatingType = DEFAULT_HEATING_TYPE): Promise<string> {
 		return this.enqueueConfigurationMutation(current => {
-			const changed = addScheduleToConfiguration(current, name);
+			const changed = addScheduleToConfiguration(current, name, heatingType);
 			return {
 				result: changed.id,
 				configuration: changed.configuration,
@@ -145,11 +147,11 @@ class HeatingScheduler extends utils.Adapter {
 		});
 	}
 
-	public async renameHeatingSchedule(id: string, name: string): Promise<void> {
+	public async renameHeatingSchedule(id: string, name: string, heatingType?: HeatingType): Promise<void> {
 		return this.enqueueConfigurationMutation(current => {
 			return {
 				result: undefined,
-				configuration: renameScheduleInConfiguration(current, id, name),
+				configuration: renameScheduleInConfiguration(current, id, name, heatingType),
 			};
 		});
 	}

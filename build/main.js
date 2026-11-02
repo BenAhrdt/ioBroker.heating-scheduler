@@ -125,20 +125,20 @@ class HeatingScheduler extends utils.Adapter {
       })
     );
   }
-  async addHeatingSchedule(name) {
+  async addHeatingSchedule(name, heatingType = import_configuration.DEFAULT_HEATING_TYPE) {
     return this.enqueueConfigurationMutation((current) => {
-      const changed = (0, import_schedule_operations.addScheduleToConfiguration)(current, name);
+      const changed = (0, import_schedule_operations.addScheduleToConfiguration)(current, name, heatingType);
       return {
         result: changed.id,
         configuration: changed.configuration
       };
     });
   }
-  async renameHeatingSchedule(id, name) {
+  async renameHeatingSchedule(id, name, heatingType) {
     return this.enqueueConfigurationMutation((current) => {
       return {
         result: void 0,
-        configuration: (0, import_schedule_operations.renameScheduleInConfiguration)(current, id, name)
+        configuration: (0, import_schedule_operations.renameScheduleInConfiguration)(current, id, name, heatingType)
       };
     });
   }

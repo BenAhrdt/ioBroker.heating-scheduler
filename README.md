@@ -23,6 +23,7 @@ The adapter is currently in early development. Heating modes belong to a heating
 - Configure setpoint and optional feedback state mappings.
 - Define heating modes with weekdays, start times, start dates and target temperatures.
 - Enable or disable a complete heating schedule or individual heating modes.
+- Choose between radiator and underfloor heating per schedule; the card color and icon reflect the selected system.
 - Use translated schedule and heating-mode names through the object metadata.
 - Keep the authoritative configuration in the versioned schedules structure.
 - Create delayed instance-native configuration backups and restore them when needed.
@@ -46,6 +47,12 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.
+- Improved device-list refresh compatibility after saving or renaming a schedule.
+- Added live setpoint and feedback values to schedule cards and a direct start button for every heating mode.
+
 ### 0.1.1 (2026-11-02)
 
 - Updated the adapter logo and README documentation.

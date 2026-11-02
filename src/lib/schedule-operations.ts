@@ -1,10 +1,13 @@
 import {
+	DEFAULT_HEATING_TYPE,
 	DEFAULT_FEEDBACK_MODE,
 	createScheduleId,
 	createChildId,
 	isFeedbackMode,
+	isHeatingType,
 	isWeekdaySelection,
 	normalizeConfiguration,
+	type HeatingType,
 	type HeatingSchedulesConfiguration,
 } from './configuration';
 
@@ -12,6 +15,8 @@ import {
 export interface HeatingScheduleConfigurationPatch {
 	/** User-facing schedule name. */
 	name: string;
+	/** Optional heating system type; existing schedules default to a radiator. */
+	heatingType?: HeatingType;
 	/** Setpoint and feedback mappings submitted by the dialog. */
 	setpointMappings: unknown[];
 	/** Heating modes submitted by the dialog. */
@@ -23,6 +28,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function validateConfigurationPatch(patch: HeatingScheduleConfigurationPatch): void {
+	if (patch.heatingType !== undefined && !isHeatingType(patch.heatingType)) {
+		throw new Error('The heating system type is invalid');
+	}
 	if (!Array.isArray(patch.setpointMappings) || !Array.isArray(patch.heatingModes)) {
 		throw new Error('The schedule configuration collections must be arrays');
 	}
@@ -113,12 +121,17 @@ function validateName(configuration: HeatingSchedulesConfiguration, name: string
  *
  * @param configuration current configuration
  * @param name requested display name
+ * @param heatingType heating system type
  */
 export function addScheduleToConfiguration(
 	configuration: HeatingSchedulesConfiguration,
 	name: string,
+	heatingType: HeatingType = DEFAULT_HEATING_TYPE,
 ): { configuration: HeatingSchedulesConfiguration; id: string } {
 	const normalizedName = validateName(configuration, name);
+	if (!isHeatingType(heatingType)) {
+		throw new Error('The heating system type is invalid');
+	}
 	const created = createScheduleId(
 		configuration.nextScheduleNumber,
 		new Set(configuration.schedules.map(schedule => schedule.id)),
@@ -132,6 +145,7 @@ export function addScheduleToConfiguration(
 				{
 					id: created.id,
 					name: normalizedName,
+					heatingType,
 					setpointMappings: [],
 					heatingModes: [],
 					nextSetpointMappingNumber: 1,
@@ -149,20 +163,27 @@ export function addScheduleToConfiguration(
  * @param configuration current configuration
  * @param id stable technical ID
  * @param name requested display name
+ * @param heatingType optional heating system type
  */
 export function renameScheduleInConfiguration(
 	configuration: HeatingSchedulesConfiguration,
 	id: string,
 	name: string,
+	heatingType?: HeatingType,
 ): HeatingSchedulesConfiguration {
 	if (!configuration.schedules.some(schedule => schedule.id === id)) {
 		throw new Error(`Schedule ${id} does not exist`);
 	}
 	const normalizedName = validateName(configuration, name, id);
+	if (heatingType !== undefined && !isHeatingType(heatingType)) {
+		throw new Error('The heating system type is invalid');
+	}
 	return {
 		...configuration,
 		schedules: configuration.schedules.map(schedule =>
-			schedule.id === id ? { ...schedule, name: normalizedName } : schedule,
+			schedule.id === id
+				? { ...schedule, name: normalizedName, ...(heatingType ? { heatingType } : {}) }
+				: schedule,
 		),
 	};
 }
@@ -272,6 +293,7 @@ export function updateScheduleConfiguration(
 				? {
 						...entry,
 						name: normalizedName,
+						heatingType: patch.heatingType ?? entry.heatingType,
 						setpointMappings,
 						nextSetpointMappingNumber: nextMappingNumber,
 						heatingModes,

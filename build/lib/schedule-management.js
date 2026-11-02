@@ -22,11 +22,20 @@ __export(schedule_management_exports, {
 });
 module.exports = __toCommonJS(schedule_management_exports);
 var import_dm_utils = require("@iobroker/dm-utils");
+var import_configuration = require("./configuration");
 function translate(en, de) {
   return { en, de };
 }
 function getName(data) {
   return typeof (data == null ? void 0 : data.name) === "string" ? data.name.trim() : "";
+}
+function getHeatingType(data) {
+  return (data == null ? void 0 : data.heatingType) === "underfloorHeating" ? "underfloorHeating" : import_configuration.DEFAULT_HEATING_TYPE;
+}
+function heatingTypePresentation(type) {
+  const radiatorIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"><path d="M10 16v32M18 16v32M26 16v32M38 16v32M46 16v32M54 16v32"/><path d="M8 16h48M8 48h48M6 12h52M6 52h52"/></g></svg>`;
+  const underfloorIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M10 18h40a6 6 0 0 1 0 12H20a6 6 0 0 0 0 12h30a6 6 0 0 1 0 12H10" fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/><path d="M18 10v6M32 8v8M46 10v6" fill="none" stroke="white" stroke-linecap="round" stroke-width="4"/></svg>`;
+  return type === "underfloorHeating" ? { backgroundColor: "#0f766e", icon: `data:image/svg+xml,${encodeURIComponent(underfloorIcon)}` } : { backgroundColor: "#b45309", icon: `data:image/svg+xml,${encodeURIComponent(radiatorIcon)}` };
 }
 function getTextValue(value) {
   if (typeof value === "string") {
@@ -52,6 +61,10 @@ function numericStateConfigurationDisabledRule(validNumericStateIds) {
 function mappingDisplayName(mapping, allMappings, numericStateNames) {
   const baseName = numericStateNames[mapping.setpointStateId] || mapping.setpointStateId || "Setpoint mapping";
   return allMappings.length > 1 ? `${baseName} (${mapping.id})` : baseName;
+}
+function mappingValueLabel(en, de, mapping, allMappings) {
+  const suffix = allMappings.length > 1 ? ` (${mapping.id})` : "";
+  return translate(`${en}${suffix}`, `${de}${suffix}`);
 }
 function scheduleNameValidator(existingNames) {
   return `return (() => { const name = typeof data.name === 'string' ? data.name.trim() : ''; if (!name) return false; const existingNames = ${JSON.stringify(existingNames)}; return !existingNames.some(existing => existing.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0); })()`;
@@ -101,6 +114,28 @@ function scheduleConfigurationForm() {
         type: "panel",
         label: translate("Setpoint / feedback mappings", "Sollwert-/R\xFCckmelde-Zuordnungen"),
         items: {
+          heatingType: {
+            type: "select",
+            attr: "heatingType",
+            label: translate("Heating system", "Heizsystem"),
+            options: [
+              {
+                value: "radiator",
+                label: translate("Radiator", "Heizk\xF6rper")
+              },
+              {
+                value: "underfloorHeating",
+                label: translate("Underfloor heating", "Fu\xDFbodenheizung")
+              }
+            ],
+            default: import_configuration.DEFAULT_HEATING_TYPE,
+            newLine: true,
+            xs: 12,
+            sm: 8,
+            md: 6,
+            lg: 6,
+            xl: 6
+          },
           setpointMappings: {
             type: "accordion",
             titleAttr: "name",
@@ -341,6 +376,7 @@ function scheduleConfigurationForm() {
 function scheduleConfigurationData(schedule, numericStateNames) {
   return {
     _validNumericStateIds: Object.keys(numericStateNames),
+    heatingType: schedule.heatingType,
     setpointMappings: schedule.setpointMappings.map((mapping) => ({
       ...mapping,
       name: mappingDisplayName(mapping, schedule.setpointMappings, numericStateNames)
@@ -437,6 +473,7 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         }
         await this.adapter.updateHeatingSchedule(schedule.id, {
           name: schedule.name,
+          heatingType: getHeatingType(data),
           setpointMappings: normalizeMappingFormRows(data.setpointMappings),
           heatingModes: Array.isArray(data.heatingModes) ? data.heatingModes : []
         });
@@ -469,6 +506,8 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
     const info = {
       id: schedule.id,
       name: schedule.name,
+      ...heatingTypePresentation(schedule.heatingType),
+      color: "#fff",
       actions: [
         {
           id: import_dm_utils.ACTIONS.ENABLE_DISABLE,
@@ -524,11 +563,63 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         newLine: true,
         xs: 12
       },
+      ...Object.fromEntries(
+        schedule.setpointMappings.flatMap((mapping) => {
+          const controls = [
+            [
+              `currentSetpoint_${mapping.id}`,
+              {
+                type: "state",
+                oid: mapping.setpointStateId,
+                foreign: true,
+                control: "number",
+                label: mappingValueLabel(
+                  "Current setpoint",
+                  "Aktueller Sollwert",
+                  mapping,
+                  schedule.setpointMappings
+                ),
+                unit: "\xB0C",
+                digits: 1,
+                readOnly: true,
+                style: { marginTop: -2, marginBottom: -2 },
+                newLine: true,
+                xs: 12
+              }
+            ]
+          ];
+          if (mapping.feedbackStateId) {
+            controls.push([
+              `currentFeedback_${mapping.id}`,
+              {
+                type: "state",
+                oid: mapping.feedbackStateId,
+                foreign: true,
+                control: "number",
+                label: mappingValueLabel(
+                  "Reported setpoint",
+                  "R\xFCckgemeldeter Sollwert",
+                  mapping,
+                  schedule.setpointMappings
+                ),
+                unit: "\xB0C",
+                digits: 1,
+                readOnly: true,
+                style: { marginTop: -2, marginBottom: -2 },
+                newLine: true,
+                xs: 12
+              }
+            ]);
+          }
+          return controls;
+        })
+      ),
       scheduleModesHeader: {
         type: "header",
         text: translate("Modes", "Modi"),
         size: 5,
         style: {
+          marginTop: 10,
           marginLeft: -4,
           width: "calc(100% + 4px)",
           marginBottom: 8,
@@ -541,17 +632,37 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         xs: 12
       },
       ...Object.fromEntries(
-        schedule.heatingModes.map((mode) => [
-          `active_${mode.id}`,
-          {
-            type: "state",
-            oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
-            control: "switch",
-            label: mode.name,
-            style: { marginTop: -10, marginBottom: -2 },
-            newLine: true,
-            xs: 12
-          }
+        schedule.heatingModes.flatMap((mode) => [
+          [
+            `active_${mode.id}`,
+            {
+              type: "state",
+              oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+              control: "switch",
+              label: mode.name,
+              style: { marginTop: -10, marginBottom: -2 },
+              newLine: true,
+              xs: 8,
+              sm: 9
+            }
+          ],
+          [
+            `activate_${mode.id}`,
+            {
+              type: "state",
+              oid: `schedules.${schedule.id}.heatingModes.${mode.id}.activate`,
+              control: "button",
+              buttonValue: true,
+              falseText: translate("Run", "Start"),
+              icon: "play",
+              variant: "text",
+              tooltip: translate("Activate this heating mode now", "Diesen Heizmodus jetzt aktivieren"),
+              style: { marginTop: -10, marginBottom: -2, textAlign: "right" },
+              newLine: false,
+              xs: 4,
+              sm: 3
+            }
+          ]
         ])
       )
     };
@@ -574,7 +685,7 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
     if (!schedule) {
       return { refresh: "devices" };
     }
-    return { update: this.deviceInfo(schedule) };
+    return { refresh: "devices" };
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

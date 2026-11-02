@@ -15,6 +15,7 @@ describe('Heating Scheduler configuration', () => {
 				{
 					id: 'schedule_001',
 					name: 'Living room',
+					heatingType: 'radiator',
 					setpointMappings: [],
 					heatingModes: [],
 					nextSetpointMappingNumber: 1,
@@ -37,6 +38,7 @@ describe('Heating Scheduler configuration', () => {
 				{
 					id: 'stable_room',
 					name: 'Room',
+					heatingType: 'radiator',
 					setpointMappings: [],
 					heatingModes: [],
 					nextSetpointMappingNumber: 1,
@@ -54,6 +56,7 @@ describe('Heating Scheduler configuration', () => {
 				{
 					id: 'schedule_001',
 					name: 'Living room',
+					heatingType: 'underfloorHeating',
 					setpointMappings: [
 						{ setpointStateId: 'thermostat.setpoint', feedbackMode: 'onChange' },
 						{ setpointStateId: 'thermostat.target', feedbackMode: 'cyclic', feedbackIntervalMinutes: 10 },
@@ -74,6 +77,7 @@ describe('Heating Scheduler configuration', () => {
 		expect(legacy.schedules[0].setpointMappings[0].feedbackMode).to.equal(0);
 		expect(legacy.schedules[0].setpointMappings[1].feedbackMode).to.equal(2);
 		expect(legacy.schedules[0].heatingModes[0].weekdaySelection).to.equal(2);
+		expect(legacy.schedules[0].heatingType).to.equal('underfloorHeating');
 
 		const numeric = normalizeConfiguration({
 			schemaVersion: 3,
@@ -109,6 +113,7 @@ describe('Heating Scheduler configuration', () => {
 				{
 					id: 'schedule_002',
 					name: 'First',
+					heatingType: 'radiator',
 					setpointMappings: [],
 					heatingModes: [],
 					nextSetpointMappingNumber: 1,

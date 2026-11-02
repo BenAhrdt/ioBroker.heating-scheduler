@@ -29,6 +29,9 @@ function isRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 function validateConfigurationPatch(patch) {
+  if (patch.heatingType !== void 0 && !(0, import_configuration.isHeatingType)(patch.heatingType)) {
+    throw new Error("The heating system type is invalid");
+  }
   if (!Array.isArray(patch.setpointMappings) || !Array.isArray(patch.heatingModes)) {
     throw new Error("The schedule configuration collections must be arrays");
   }
@@ -93,8 +96,11 @@ function validateName(configuration, name, currentId) {
   }
   return normalizedName;
 }
-function addScheduleToConfiguration(configuration, name) {
+function addScheduleToConfiguration(configuration, name, heatingType = import_configuration.DEFAULT_HEATING_TYPE) {
   const normalizedName = validateName(configuration, name);
+  if (!(0, import_configuration.isHeatingType)(heatingType)) {
+    throw new Error("The heating system type is invalid");
+  }
   const created = (0, import_configuration.createScheduleId)(
     configuration.nextScheduleNumber,
     new Set(configuration.schedules.map((schedule) => schedule.id))
@@ -108,6 +114,7 @@ function addScheduleToConfiguration(configuration, name) {
         {
           id: created.id,
           name: normalizedName,
+          heatingType,
           setpointMappings: [],
           heatingModes: [],
           nextSetpointMappingNumber: 1,
@@ -118,15 +125,18 @@ function addScheduleToConfiguration(configuration, name) {
     }
   };
 }
-function renameScheduleInConfiguration(configuration, id, name) {
+function renameScheduleInConfiguration(configuration, id, name, heatingType) {
   if (!configuration.schedules.some((schedule) => schedule.id === id)) {
     throw new Error(`Schedule ${id} does not exist`);
   }
   const normalizedName = validateName(configuration, name, id);
+  if (heatingType !== void 0 && !(0, import_configuration.isHeatingType)(heatingType)) {
+    throw new Error("The heating system type is invalid");
+  }
   return {
     ...configuration,
     schedules: configuration.schedules.map(
-      (schedule) => schedule.id === id ? { ...schedule, name: normalizedName } : schedule
+      (schedule) => schedule.id === id ? { ...schedule, name: normalizedName, ...heatingType ? { heatingType } : {} } : schedule
     )
   };
 }
@@ -193,13 +203,17 @@ function updateScheduleConfiguration(configuration, id, patch, validNumericState
   return (0, import_configuration.normalizeConfiguration)({
     ...configuration,
     schedules: configuration.schedules.map(
-      (entry) => entry.id === id ? {
-        ...entry,
-        name: normalizedName,
-        setpointMappings,
-        nextSetpointMappingNumber: nextMappingNumber,
-        heatingModes
-      } : entry
+      (entry) => {
+        var _a;
+        return entry.id === id ? {
+          ...entry,
+          name: normalizedName,
+          heatingType: (_a = patch.heatingType) != null ? _a : entry.heatingType,
+          setpointMappings,
+          nextSetpointMappingNumber: nextMappingNumber,
+          heatingModes
+        } : entry;
+      }
     )
   });
 }

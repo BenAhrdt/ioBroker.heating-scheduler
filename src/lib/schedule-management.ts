@@ -4,7 +4,7 @@ import type { ActionContext } from '@iobroker/dm-utils/build/ActionContext';
 import type { DeviceLoadContext } from '@iobroker/dm-utils/build/DeviceManagement';
 import type { ConfigItemAny, ErrorResponse } from '@iobroker/dm-utils/build/types/common';
 import type { DeviceInfo, DeviceRefreshResponse } from '@iobroker/dm-utils/build/types/base';
-import type { HeatingSchedule } from './configuration';
+import { DEFAULT_HEATING_TYPE, type HeatingSchedule, type HeatingType } from './configuration';
 import type { HeatingScheduleConfigurationPatch } from './schedule-operations';
 
 /** Adapter methods required by the Device Manager bridge. */
@@ -12,9 +12,9 @@ export interface HeatingSchedulerManagementHost extends AdapterInstance {
 	/** Returns a snapshot of the configured schedules. */
 	getHeatingSchedules(): readonly HeatingSchedule[];
 	/** Adds a schedule and returns its stable technical ID. */
-	addHeatingSchedule(name: string): Promise<string>;
+	addHeatingSchedule(name: string, heatingType?: HeatingType): Promise<string>;
 	/** Changes a schedule display name. */
-	renameHeatingSchedule(id: string, name: string): Promise<void>;
+	renameHeatingSchedule(id: string, name: string, heatingType?: HeatingType): Promise<void>;
 	/** Removes a schedule and its derived objects. */
 	removeHeatingSchedule(id: string): Promise<void>;
 	/** Replaces one schedule's setpoint mappings and heating modes. */
@@ -42,6 +42,18 @@ function translate(en: string, de: string): ioBroker.StringOrTranslated {
  */
 function getName(data: Record<string, unknown> | undefined): string {
 	return typeof data?.name === 'string' ? data.name.trim() : '';
+}
+
+function getHeatingType(data: Record<string, unknown> | undefined): HeatingType {
+	return data?.heatingType === 'underfloorHeating' ? 'underfloorHeating' : DEFAULT_HEATING_TYPE;
+}
+
+function heatingTypePresentation(type: HeatingType): { backgroundColor: string; icon: string } {
+	const radiatorIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"><path d="M10 16v32M18 16v32M26 16v32M38 16v32M46 16v32M54 16v32"/><path d="M8 16h48M8 48h48M6 12h52M6 52h52"/></g></svg>`;
+	const underfloorIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M10 18h40a6 6 0 0 1 0 12H20a6 6 0 0 0 0 12h30a6 6 0 0 1 0 12H10" fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/><path d="M18 10v6M32 8v8M46 10v6" fill="none" stroke="white" stroke-linecap="round" stroke-width="4"/></svg>`;
+	return type === 'underfloorHeating'
+		? { backgroundColor: '#0f766e', icon: `data:image/svg+xml,${encodeURIComponent(underfloorIcon)}` }
+		: { backgroundColor: '#b45309', icon: `data:image/svg+xml,${encodeURIComponent(radiatorIcon)}` };
 }
 
 function getTextValue(value: unknown): string {
@@ -75,6 +87,16 @@ function mappingDisplayName(
 ): string {
 	const baseName = numericStateNames[mapping.setpointStateId] || mapping.setpointStateId || 'Setpoint mapping';
 	return allMappings.length > 1 ? `${baseName} (${mapping.id})` : baseName;
+}
+
+function mappingValueLabel(
+	en: string,
+	de: string,
+	mapping: HeatingSchedule['setpointMappings'][number],
+	allMappings: HeatingSchedule['setpointMappings'],
+): ioBroker.StringOrTranslated {
+	const suffix = allMappings.length > 1 ? ` (${mapping.id})` : '';
+	return translate(`${en}${suffix}`, `${de}${suffix}`);
 }
 
 function scheduleNameValidator(existingNames: readonly string[]): string {
@@ -129,6 +151,28 @@ function scheduleConfigurationForm(): any {
 				type: 'panel',
 				label: translate('Setpoint / feedback mappings', 'Sollwert-/Rückmelde-Zuordnungen'),
 				items: {
+					heatingType: {
+						type: 'select',
+						attr: 'heatingType',
+						label: translate('Heating system', 'Heizsystem'),
+						options: [
+							{
+								value: 'radiator',
+								label: translate('Radiator', 'Heizkörper'),
+							},
+							{
+								value: 'underfloorHeating',
+								label: translate('Underfloor heating', 'Fußbodenheizung'),
+							},
+						],
+						default: DEFAULT_HEATING_TYPE,
+						newLine: true,
+						xs: 12,
+						sm: 8,
+						md: 6,
+						lg: 6,
+						xl: 6,
+					},
 					setpointMappings: {
 						type: 'accordion',
 						titleAttr: 'name',
@@ -374,6 +418,7 @@ function scheduleConfigurationData(
 ): Record<string, unknown> {
 	return {
 		_validNumericStateIds: Object.keys(numericStateNames),
+		heatingType: schedule.heatingType,
 		setpointMappings: schedule.setpointMappings.map(mapping => ({
 			...mapping,
 			name: mappingDisplayName(mapping, schedule.setpointMappings, numericStateNames),
@@ -480,6 +525,7 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				}
 				await this.adapter.updateHeatingSchedule(schedule.id, {
 					name: schedule.name,
+					heatingType: getHeatingType(data),
 					setpointMappings: normalizeMappingFormRows(data.setpointMappings),
 					heatingModes: Array.isArray(data.heatingModes) ? data.heatingModes : [],
 				});
@@ -515,6 +561,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 		const info: DeviceInfo<'adapter', string> = {
 			id: schedule.id,
 			name: schedule.name,
+			...heatingTypePresentation(schedule.heatingType),
+			color: '#fff',
 			actions: [
 				{
 					id: ACTIONS.ENABLE_DISABLE,
@@ -570,11 +618,63 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				newLine: true,
 				xs: 12,
 			},
+			...Object.fromEntries(
+				schedule.setpointMappings.flatMap(mapping => {
+					const controls: [string, ConfigItemAny][] = [
+						[
+							`currentSetpoint_${mapping.id}`,
+							{
+								type: 'state',
+								oid: mapping.setpointStateId,
+								foreign: true,
+								control: 'number',
+								label: mappingValueLabel(
+									'Current setpoint',
+									'Aktueller Sollwert',
+									mapping,
+									schedule.setpointMappings,
+								),
+								unit: '°C',
+								digits: 1,
+								readOnly: true,
+								style: { marginTop: -2, marginBottom: -2 },
+								newLine: true,
+								xs: 12,
+							},
+						],
+					];
+					if (mapping.feedbackStateId) {
+						controls.push([
+							`currentFeedback_${mapping.id}`,
+							{
+								type: 'state',
+								oid: mapping.feedbackStateId,
+								foreign: true,
+								control: 'number',
+								label: mappingValueLabel(
+									'Reported setpoint',
+									'Rückgemeldeter Sollwert',
+									mapping,
+									schedule.setpointMappings,
+								),
+								unit: '°C',
+								digits: 1,
+								readOnly: true,
+								style: { marginTop: -2, marginBottom: -2 },
+								newLine: true,
+								xs: 12,
+							},
+						]);
+					}
+					return controls;
+				}),
+			),
 			scheduleModesHeader: {
 				type: 'header',
 				text: translate('Modes', 'Modi'),
 				size: 5,
 				style: {
+					marginTop: 10,
 					marginLeft: -4,
 					width: 'calc(100% + 4px)',
 					marginBottom: 8,
@@ -587,17 +687,37 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				xs: 12,
 			},
 			...Object.fromEntries(
-				schedule.heatingModes.map(mode => [
-					`active_${mode.id}`,
-					{
-						type: 'state',
-						oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
-						control: 'switch',
-						label: mode.name,
-						style: { marginTop: -10, marginBottom: -2 },
-						newLine: true,
-						xs: 12,
-					},
+				schedule.heatingModes.flatMap(mode => [
+					[
+						`active_${mode.id}`,
+						{
+							type: 'state',
+							oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+							control: 'switch',
+							label: mode.name,
+							style: { marginTop: -10, marginBottom: -2 },
+							newLine: true,
+							xs: 8,
+							sm: 9,
+						},
+					],
+					[
+						`activate_${mode.id}`,
+						{
+							type: 'state',
+							oid: `schedules.${schedule.id}.heatingModes.${mode.id}.activate`,
+							control: 'button',
+							buttonValue: true,
+							falseText: translate('Run', 'Start'),
+							icon: 'play',
+							variant: 'text',
+							tooltip: translate('Activate this heating mode now', 'Diesen Heizmodus jetzt aktivieren'),
+							style: { marginTop: -10, marginBottom: -2, textAlign: 'right' },
+							newLine: false,
+							xs: 4,
+							sm: 3,
+						},
+					],
 				]),
 			),
 		};
@@ -621,9 +741,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 		if (!schedule) {
 			return { refresh: 'devices' };
 		}
-		// The action handler belongs to the device snapshot that was loaded when
-		// the card was opened. Replace that cached card with a fresh snapshot so
-		// newly added or removed heating modes are visible immediately.
-		return { update: this.deviceInfo(schedule) };
+		// Admin 8.3.5 does not reliably apply the v3 `update` response. Reload the
+		// complete device list so newly added or removed heating modes are visible.
+		return { refresh: 'devices' };
 	}
 }

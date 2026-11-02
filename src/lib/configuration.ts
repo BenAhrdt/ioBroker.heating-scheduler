@@ -8,11 +8,14 @@ export type HeatingModeId = string;
 
 export type FeedbackMode = 0 | 1 | 2;
 export type WeekdaySelection = 0 | 1 | 2;
+export type HeatingType = 'radiator' | 'underfloorHeating';
 
 /** 0 = on change, 1 = on update, 2 = cyclic. */
 export const DEFAULT_FEEDBACK_MODE: FeedbackMode = 1;
 /** 0 = all weekdays, 1 = include selected weekdays, 2 = exclude selected weekdays. */
 export const DEFAULT_WEEKDAY_SELECTION: WeekdaySelection = 1;
+/** The default heating system used for existing and newly created schedules. */
+export const DEFAULT_HEATING_TYPE: HeatingType = 'radiator';
 export const DEFAULT_DEVIATION_COUNT_BEFORE_WRITE = 3;
 export const DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES = 5;
 export const DEFAULT_HEATING_MODE_START_TIME = '00:00';
@@ -35,6 +38,15 @@ export function isFeedbackMode(value: unknown): value is FeedbackMode {
  */
 export function isWeekdaySelection(value: unknown): value is WeekdaySelection {
 	return value === 0 || value === 1 || value === 2;
+}
+
+/**
+ * Returns true when the value is a supported heating system type.
+ *
+ * @param value candidate value to validate
+ */
+export function isHeatingType(value: unknown): value is HeatingType {
+	return value === 'radiator' || value === 'underfloorHeating';
 }
 
 /** A Sollwert-/Ist-Sollwert relationship configured for one schedule. */
@@ -77,6 +89,8 @@ export interface HeatingSchedule {
 	id: HeatingScheduleId;
 	/** User-facing display name. */
 	name: string;
+	/** Heating system represented by this schedule. */
+	heatingType: HeatingType;
 	/** Independent Sollwert-/Ist-Sollwert relationships. */
 	setpointMappings: HeatingScheduleSetpointMapping[];
 	/** Heating modes configured below this schedule. */
@@ -156,6 +170,10 @@ function normalizeWeekdaySelection(value: unknown): WeekdaySelection {
 		return 1;
 	}
 	return DEFAULT_WEEKDAY_SELECTION;
+}
+
+function normalizeHeatingType(value: unknown): HeatingType {
+	return isHeatingType(value) ? value : DEFAULT_HEATING_TYPE;
 }
 
 function normalizeDate(value: unknown): string | undefined {
@@ -311,6 +329,7 @@ function normalizeSchedule(value: unknown): HeatingSchedule | undefined {
 	return {
 		id,
 		name,
+		heatingType: normalizeHeatingType(value.heatingType),
 		setpointMappings: mappings.items,
 		heatingModes: modes.items,
 		nextSetpointMappingNumber: mappings.nextNumber,
@@ -404,6 +423,9 @@ export function validateConfiguration(value: unknown): string[] {
 				errors.push(`schedules[${index}].name is duplicated.`);
 			} else {
 				names.add(name.toLocaleLowerCase());
+			}
+			if (schedule.heatingType !== undefined && !isHeatingType(schedule.heatingType)) {
+				errors.push(`schedules[${index}].heatingType is invalid.`);
 			}
 			if (!Array.isArray(schedule.setpointMappings)) {
 				errors.push(`schedules[${index}].setpointMappings must be an array.`);

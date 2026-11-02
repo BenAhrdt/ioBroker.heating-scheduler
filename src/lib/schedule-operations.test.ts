@@ -13,6 +13,7 @@ describe('Heating Modes schedule operations', () => {
 			{
 				id: 'schedule_001',
 				name: 'Living room',
+				heatingType: 'radiator' as const,
 				setpointMappings: [],
 				heatingModes: [],
 				nextSetpointMappingNumber: 1,
@@ -75,6 +76,7 @@ describe('Heating Modes schedule operations', () => {
 			'schedule_001',
 			{
 				name: 'Living room',
+				heatingType: 'underfloorHeating',
 				setpointMappings: [
 					{
 						id: 'mapping_001',
@@ -92,5 +94,6 @@ describe('Heating Modes schedule operations', () => {
 			setpointStateId: 'new.setpoint',
 			feedbackStateId: 'new.feedback',
 		});
+		expect(changed.schedules[0].heatingType).to.equal('underfloorHeating');
 	});
 });

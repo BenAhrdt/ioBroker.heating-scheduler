@@ -19,3 +19,4 @@ Kurze Einträge mit Datum (`YYYY-MM-DD`) ergänzen; ausführliche Zusammenhänge
 - 2026-11-02: Schema-Version 3 enthält unabhängige Sollwert-/Rückmelde-Zuordnungen und Heating Modes innerhalb jedes Heizplans. Eine Migration aus der früheren `devices`-Struktur ist nicht vorgesehen.
 - 2026-11-02: Heizplan- und Heizmodusnamen werden ausschließlich als `common.name` des jeweiligen Schedule-/Channel-Objekts geführt; redundante `name`-States werden bei der Objektsynchronisierung entfernt.
 - 2026-11-02: `weekdaySelection` nutzt die numerischen Werte 0 (alle Tage), 1 (einschließen) und 2 (ausschließen); `feedbackMode` nutzt 0 (bei Änderung), 1 (bei Aktualisierung) und 2 (zyklisch). Alte Stringwerte werden beim Normalisieren übernommen.
+- 2026-11-02: Heizpläne führen zusätzlich den Typ `radiator` oder `underfloorHeating`; fehlende Werte werden in Schema-Version 3 als `radiator` normalisiert.

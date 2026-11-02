@@ -8,6 +8,7 @@ describe('Heating Scheduler configuration backup', () => {
 			{
 				id: 'schedule_001',
 				name: 'Living room',
+				heatingType: 'radiator' as const,
 				setpointMappings: [],
 				heatingModes: [],
 				nextSetpointMappingNumber: 1,
