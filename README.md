@@ -47,6 +47,16 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Updated repository validation, CI workflows and translations after the adapter check.
+- Added optional heating-system activation dates and refined the Device Manager configuration controls.
+- New heating schedules now use the smallest free technical schedule number.
+- Device cards are reassigned through a direct Device Manager update after structural schedule changes.
+- A central schedule button can apply the most recent matching heating mode for the current time and weekday.
+- A second schedule button applies only the heating mode that automation would currently select; it is hidden when the schedule or all modes are inactive and otherwise does nothing if no active mode matches.
+- Schedule and heating-mode cards show their optional automatic activation details in a compact secondary line.
+
 ### 0.1.2 (2026-11-02)
 
 - Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.

@@ -35,6 +35,15 @@ function validateConfigurationPatch(patch) {
   if (!Array.isArray(patch.setpointMappings) || !Array.isArray(patch.heatingModes)) {
     throw new Error("The schedule configuration collections must be arrays");
   }
+  if (patch.startDate !== void 0 && patch.startDate !== "" && !(0, import_configuration.isValidCalendarDate)(patch.startDate)) {
+    throw new Error("The schedule start date must use YYYY-MM-DD");
+  }
+  if (patch.endDate !== void 0 && patch.endDate !== "" && !(0, import_configuration.isValidCalendarDate)(patch.endDate)) {
+    throw new Error("The schedule end date must use YYYY-MM-DD");
+  }
+  if (!(0, import_configuration.isValidDateRange)(patch.startDate || void 0, patch.endDate || void 0)) {
+    throw new Error("The schedule start date must be before or equal to its end date");
+  }
   for (const [index, candidate] of patch.setpointMappings.entries()) {
     if (!isRecord(candidate)) {
       throw new Error(`Setpoint mapping ${index + 1} is invalid`);
@@ -75,8 +84,17 @@ function validateConfigurationPatch(patch) {
     if (typeof candidate.startTime !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.startTime)) {
       throw new Error(`Heating mode ${index + 1} needs a valid HH:mm start time`);
     }
-    if (candidate.startDate !== void 0 && candidate.startDate !== "" && (typeof candidate.startDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.startDate))) {
+    if (candidate.startDate !== void 0 && candidate.startDate !== "" && !(0, import_configuration.isValidCalendarDate)(candidate.startDate)) {
       throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD start date`);
+    }
+    if (candidate.endDate !== void 0 && candidate.endDate !== "" && !(0, import_configuration.isValidCalendarDate)(candidate.endDate)) {
+      throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD end date`);
+    }
+    if (!(0, import_configuration.isValidDateRange)(
+      typeof candidate.startDate === "string" && candidate.startDate ? candidate.startDate : void 0,
+      typeof candidate.endDate === "string" && candidate.endDate ? candidate.endDate : void 0
+    )) {
+      throw new Error(`Heating mode ${index + 1} start date must be before or equal to its end date`);
     }
     if (typeof candidate.temperature !== "number" || !Number.isFinite(candidate.temperature)) {
       throw new Error(`Heating mode ${index + 1} needs a finite temperature`);
@@ -209,6 +227,8 @@ function updateScheduleConfiguration(configuration, id, patch, validNumericState
           ...entry,
           name: normalizedName,
           heatingType: (_a = patch.heatingType) != null ? _a : entry.heatingType,
+          startDate: patch.startDate !== void 0 ? patch.startDate || void 0 : entry.startDate,
+          endDate: patch.endDate !== void 0 ? patch.endDate || void 0 : entry.endDate,
           setpointMappings,
           nextSetpointMappingNumber: nextMappingNumber,
           heatingModes

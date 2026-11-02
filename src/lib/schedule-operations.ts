@@ -4,6 +4,8 @@ import {
 	createScheduleId,
 	createChildId,
 	isFeedbackMode,
+	isValidCalendarDate,
+	isValidDateRange,
 	isHeatingType,
 	isWeekdaySelection,
 	normalizeConfiguration,
@@ -17,6 +19,10 @@ export interface HeatingScheduleConfigurationPatch {
 	name: string;
 	/** Optional heating system type; existing schedules default to a radiator. */
 	heatingType?: HeatingType;
+	/** Optional schedule activation date. */
+	startDate?: string;
+	/** Optional schedule deactivation date. */
+	endDate?: string;
 	/** Setpoint and feedback mappings submitted by the dialog. */
 	setpointMappings: unknown[];
 	/** Heating modes submitted by the dialog. */
@@ -33,6 +39,15 @@ function validateConfigurationPatch(patch: HeatingScheduleConfigurationPatch): v
 	}
 	if (!Array.isArray(patch.setpointMappings) || !Array.isArray(patch.heatingModes)) {
 		throw new Error('The schedule configuration collections must be arrays');
+	}
+	if (patch.startDate !== undefined && patch.startDate !== '' && !isValidCalendarDate(patch.startDate)) {
+		throw new Error('The schedule start date must use YYYY-MM-DD');
+	}
+	if (patch.endDate !== undefined && patch.endDate !== '' && !isValidCalendarDate(patch.endDate)) {
+		throw new Error('The schedule end date must use YYYY-MM-DD');
+	}
+	if (!isValidDateRange(patch.startDate || undefined, patch.endDate || undefined)) {
+		throw new Error('The schedule start date must be before or equal to its end date');
 	}
 	for (const [index, candidate] of patch.setpointMappings.entries()) {
 		if (!isRecord(candidate)) {
@@ -90,9 +105,20 @@ function validateConfigurationPatch(patch: HeatingScheduleConfigurationPatch): v
 		if (
 			candidate.startDate !== undefined &&
 			candidate.startDate !== '' &&
-			(typeof candidate.startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.startDate))
+			!isValidCalendarDate(candidate.startDate)
 		) {
 			throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD start date`);
+		}
+		if (candidate.endDate !== undefined && candidate.endDate !== '' && !isValidCalendarDate(candidate.endDate)) {
+			throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD end date`);
+		}
+		if (
+			!isValidDateRange(
+				typeof candidate.startDate === 'string' && candidate.startDate ? candidate.startDate : undefined,
+				typeof candidate.endDate === 'string' && candidate.endDate ? candidate.endDate : undefined,
+			)
+		) {
+			throw new Error(`Heating mode ${index + 1} start date must be before or equal to its end date`);
 		}
 		if (typeof candidate.temperature !== 'number' || !Number.isFinite(candidate.temperature)) {
 			throw new Error(`Heating mode ${index + 1} needs a finite temperature`);
@@ -294,6 +320,8 @@ export function updateScheduleConfiguration(
 						...entry,
 						name: normalizedName,
 						heatingType: patch.heatingType ?? entry.heatingType,
+						startDate: patch.startDate !== undefined ? patch.startDate || undefined : entry.startDate,
+						endDate: patch.endDate !== undefined ? patch.endDate || undefined : entry.endDate,
 						setpointMappings,
 						nextSetpointMappingNumber: nextMappingNumber,
 						heatingModes,

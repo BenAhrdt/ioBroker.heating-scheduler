@@ -4,7 +4,7 @@ import type { ActionContext } from '@iobroker/dm-utils/build/ActionContext';
 import type { DeviceLoadContext } from '@iobroker/dm-utils/build/DeviceManagement';
 import type { ConfigItemAny, ErrorResponse } from '@iobroker/dm-utils/build/types/common';
 import type { DeviceInfo, DeviceRefreshResponse } from '@iobroker/dm-utils/build/types/base';
-import { DEFAULT_HEATING_TYPE, type HeatingSchedule, type HeatingType } from './configuration';
+import { DEFAULT_HEATING_TYPE, isValidCalendarDate, type HeatingSchedule, type HeatingType } from './configuration';
 import type { HeatingScheduleConfigurationPatch } from './schedule-operations';
 
 /** Adapter methods required by the Device Manager bridge. */
@@ -71,13 +71,73 @@ function getTextValue(value: unknown): string {
 	return '';
 }
 
+function normalizeDatePickerValue(value: unknown): string {
+	if (value instanceof Date) {
+		if (Number.isNaN(value.getTime())) {
+			return '';
+		}
+		return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+	}
+	const text = getTextValue(value);
+	if (!text || isValidCalendarDate(text)) {
+		return text;
+	}
+	const parsed = new Date(text);
+	if (Number.isNaN(parsed.getTime())) {
+		return text;
+	}
+	return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeHeatingModeFormRows(value: unknown): unknown[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.map(candidate => {
+		if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+			return candidate;
+		}
+		const mode = candidate as Record<string, unknown>;
+		return {
+			...mode,
+			startDate: mode.useStartDate === true ? normalizeDatePickerValue(mode.startDate) : '',
+			endDate: mode.useEndDate === true ? normalizeDatePickerValue(mode.endDate) : '',
+		};
+	});
+}
+
+function datePickerActivationControl(
+	dateAttr: string,
+	useAttr: string,
+	en: string,
+	de: string,
+	newLine = false,
+): Record<string, unknown> {
+	return {
+		type: 'checkbox',
+		attr: useAttr,
+		label: translate(en, de),
+		default: false,
+		onChange: {
+			alsoDependsOn: [],
+			calculateFunc: `if (!data.${useAttr}) data.${dateAttr} = ''; return data.${useAttr};`,
+		},
+		newLine,
+		xs: 12,
+		sm: 6,
+		md: 2,
+		lg: 2,
+		xl: 2,
+	};
+}
+
 function numericStateValidator(field: string, optional: boolean): string {
 	const optionalCheck = optional ? 'if (!value) return true;' : 'if (!value) return false;';
 	return `return (() => { const value = typeof data.${field} === 'string' ? data.${field}.trim() : (data.${field} && typeof data.${field} === 'object' ? String(data.${field}.value || data.${field}.id || '').trim() : ''); ${optionalCheck} const ids = typeof globalData !== 'undefined' && Array.isArray(globalData._validNumericStateIds) ? globalData._validNumericStateIds : (Array.isArray(data._validNumericStateIds) ? data._validNumericStateIds : []); return ids.includes(value); })()`;
 }
 
 function numericStateConfigurationDisabledRule(validNumericStateIds: readonly string[]): string {
-	return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || modes.some(mode => { const temperature = Number(mode && mode.temperature); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10; }); })()`;
+	return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const range = (start, end) => !start || !end || start <= end; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || !range(scheduleStart, scheduleEnd) || modes.some(mode => { const temperature = Number(mode && mode.temperature); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !range(start, end) || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10; }); })()`;
 }
 
 function mappingDisplayName(
@@ -86,17 +146,96 @@ function mappingDisplayName(
 	numericStateNames: Readonly<Record<string, string>>,
 ): string {
 	const baseName = numericStateNames[mapping.setpointStateId] || mapping.setpointStateId || 'Setpoint mapping';
-	return allMappings.length > 1 ? `${baseName} (${mapping.id})` : baseName;
+	const hasDuplicateName =
+		allMappings.filter(
+			candidate => (numericStateNames[candidate.setpointStateId] || candidate.setpointStateId) === baseName,
+		).length > 1;
+	return hasDuplicateName ? `${baseName} (${mapping.setpointStateId})` : baseName;
 }
 
-function mappingValueLabel(
-	en: string,
-	de: string,
-	mapping: HeatingSchedule['setpointMappings'][number],
-	allMappings: HeatingSchedule['setpointMappings'],
-): ioBroker.StringOrTranslated {
-	const suffix = allMappings.length > 1 ? ` (${mapping.id})` : '';
+function mappingValueLabel(en: string, de: string, position: number, multiple: boolean): ioBroker.StringOrTranslated {
+	const suffix = multiple ? ` ${position}` : '';
 	return translate(`${en}${suffix}`, `${de}${suffix}`);
+}
+
+const WEEKDAY_ABBREVIATIONS = [
+	{ en: 'Mon', de: 'Mo' },
+	{ en: 'Tue', de: 'Di' },
+	{ en: 'Wed', de: 'Mi' },
+	{ en: 'Thu', de: 'Do' },
+	{ en: 'Fri', de: 'Fr' },
+	{ en: 'Sat', de: 'Sa' },
+	{ en: 'Sun', de: 'So' },
+] as const;
+
+function formatDisplayDate(value: string, language: 'en' | 'de', compact = false): string {
+	const [year, month, day] = value.split('-');
+	return compact
+		? language === 'de'
+			? `${day}.${month}.`
+			: `${month}/${day}`
+		: language === 'de'
+			? `${day}.${month}.${year}`
+			: `${month}/${day}/${year}`;
+}
+
+function activationDateText(
+	startDate: string | undefined,
+	endDate: string | undefined,
+	compact = false,
+): { en: string; de: string } | undefined {
+	if (!startDate && !endDate) {
+		return undefined;
+	}
+	const en: string[] = [];
+	const de: string[] = [];
+	if (startDate) {
+		en.push(`Auto on ${formatDisplayDate(startDate, 'en', compact)}`);
+		de.push(`Auto ein ${formatDisplayDate(startDate, 'de', compact)}`);
+	}
+	if (endDate) {
+		en.push(`Auto off ${formatDisplayDate(endDate, 'en', compact)}`);
+		de.push(`Auto aus ${formatDisplayDate(endDate, 'de', compact)}`);
+	}
+	return { en: en.join(' · '), de: de.join(' · ') };
+}
+
+function formatWeekdayRanges(days: readonly number[], language: 'en' | 'de'): string {
+	const sortedDays = [...new Set(days)].filter(day => day >= 1 && day <= 7).sort((left, right) => left - right);
+	const ranges: string[] = [];
+	for (let index = 0; index < sortedDays.length; index += 1) {
+		const start = sortedDays[index];
+		let end = start;
+		while (sortedDays[index + 1] === end + 1) {
+			end = sortedDays[++index];
+		}
+		ranges.push(
+			start === end
+				? WEEKDAY_ABBREVIATIONS[start - 1][language]
+				: `${WEEKDAY_ABBREVIATIONS[start - 1][language]}–${WEEKDAY_ABBREVIATIONS[end - 1][language]}`,
+		);
+	}
+	return ranges.join(', ');
+}
+
+function heatingModeScheduleText(mode: HeatingSchedule['heatingModes'][number]): ioBroker.StringOrTranslated {
+	const selectedDays = formatWeekdayRanges(mode.weekdays, 'de');
+	const selectedDaysEn = formatWeekdayRanges(mode.weekdays, 'en');
+	const weekdays =
+		mode.weekdaySelection === 0
+			? { en: 'All days', de: 'Alle Tage' }
+			: mode.weekdaySelection === 2
+				? { en: `Except ${selectedDaysEn}`, de: `Außer ${selectedDays}` }
+				: { en: selectedDaysEn, de: selectedDays };
+	const dateText = activationDateText(mode.startDate, mode.endDate, true);
+	const baseText = {
+		en: `${weekdays.en} · from ${mode.startTime}`,
+		de: `${weekdays.de} · ab ${mode.startTime}`,
+	};
+	return {
+		en: dateText ? `${baseText.en}\n${dateText.en}` : baseText.en,
+		de: dateText ? `${baseText.de}\n${dateText.de}` : baseText.de,
+	};
 }
 
 function scheduleNameValidator(existingNames: readonly string[]): string {
@@ -110,7 +249,7 @@ function scheduleNameDisabledRule(existingNames: readonly string[]): string {
 function mappingNameOnChange(): { alsoDependsOn: string[]; calculateFunc: string } {
 	return {
 		alsoDependsOn: [],
-		calculateFunc: `return (async () => { const selectedId = typeof data.setpointStateId === 'string' ? data.setpointStateId.trim() : ''; if (!selectedId) { data.name = ''; return data.setpointStateId; } const object = await getObject(selectedId); const rawName = object && object.common ? object.common.name : undefined; const stateName = rawName && typeof rawName === 'object' ? rawName.de || rawName.en || selectedId : typeof rawName === 'string' && rawName.trim() ? rawName.trim() : selectedId; const mappings = globalData && Array.isArray(globalData.setpointMappings) ? globalData.setpointMappings : []; data.name = mappings.length > 1 && data.id ? stateName + ' (' + data.id + ')' : stateName; return data.setpointStateId; })()`,
+		calculateFunc: `return (async () => { const selectedId = typeof data.setpointStateId === 'string' ? data.setpointStateId.trim() : ''; if (!selectedId) { data.name = ''; return data.setpointStateId; } const object = await getObject(selectedId); const rawName = object && object.common ? object.common.name : undefined; const stateName = rawName && typeof rawName === 'object' ? rawName.de || rawName.en || selectedId : typeof rawName === 'string' && rawName.trim() ? rawName.trim() : selectedId; data.name = stateName; return data.setpointStateId; })()`,
 	};
 }
 
@@ -147,9 +286,9 @@ function scheduleConfigurationForm(): any {
 		type: 'tabs',
 		tabsStyle: { minWidth: 850 },
 		items: {
-			setpointMappings: {
+			heatingSystem: {
 				type: 'panel',
-				label: translate('Setpoint / feedback mappings', 'Sollwert-/Rückmelde-Zuordnungen'),
+				label: translate('Heating system', 'Heizsystem'),
 				items: {
 					heatingType: {
 						type: 'select',
@@ -173,6 +312,59 @@ function scheduleConfigurationForm(): any {
 						lg: 6,
 						xl: 6,
 					},
+					useStartDate: datePickerActivationControl(
+						'startDate',
+						'useStartDate',
+						'Enable start date',
+						'Startdatum aktivieren',
+						true,
+					),
+					startDate: {
+						type: 'datePicker',
+						attr: 'startDate',
+						hidden: 'data.useStartDate !== true',
+						label: translate('Start date (optional)', 'Startdatum (optional)'),
+						help: translate(
+							'Start the heating schedule on this date when it is not active.',
+							'Heizplan an diesem Datum aktivieren, wenn er nicht aktiv ist.',
+						),
+						default: '',
+						newLine: false,
+						xs: 12,
+						sm: 6,
+						md: 4,
+						lg: 4,
+						xl: 4,
+					},
+					useEndDate: datePickerActivationControl(
+						'endDate',
+						'useEndDate',
+						'Enable end date',
+						'Enddatum aktivieren',
+					),
+					endDate: {
+						type: 'datePicker',
+						attr: 'endDate',
+						hidden: 'data.useEndDate !== true',
+						label: translate('End date (optional)', 'Enddatum (optional)'),
+						help: translate(
+							'Deactivate the heating schedule on this date when it is active.',
+							'Heizplan an diesem Datum deaktivieren, wenn er aktiv ist.',
+						),
+						default: '',
+						newLine: false,
+						xs: 12,
+						sm: 6,
+						md: 4,
+						lg: 4,
+						xl: 4,
+					},
+				},
+			},
+			setpointMappings: {
+				type: 'panel',
+				label: translate('Setpoint / feedback mappings', 'Sollwert-/Rückmelde-Zuordnungen'),
+				items: {
 					setpointMappings: {
 						type: 'accordion',
 						titleAttr: 'name',
@@ -256,7 +448,7 @@ function scheduleConfigurationForm(): any {
 								attr: 'deviationCountBeforeWrite',
 								label: translate(
 									'Deviations before a future write',
-									'Abweichungen bis zum späteren Schreiben',
+									'Abweichungen bis zum erneuten Schreiben',
 								),
 								min: 1,
 								step: 1,
@@ -347,16 +539,47 @@ function scheduleConfigurationForm(): any {
 								lg: 8,
 								xl: 8,
 							},
+							datePickerActivationControl(
+								'startDate',
+								'useStartDate',
+								'Enable start date',
+								'Startdatum aktivieren',
+								true,
+							),
 							{
 								type: 'datePicker',
 								attr: 'startDate',
-								label: translate('Earliest schedule date', 'Frühestes Datum des Heizplans'),
+								hidden: 'data.useStartDate !== true',
+								label: translate('Start date (optional)', 'Startdatum (optional)'),
 								help: translate(
-									'Optional: the schedule may assign this mode from this date onwards.',
-									'Optional: Ab diesem Datum darf der Heizplan diesen Modus zuweisen.',
+									'Activate this heating mode on this date when it is not active.',
+									'Heizmodus an diesem Datum aktivieren, wenn er nicht aktiv ist.',
 								),
 								default: '',
-								newLine: true,
+								newLine: false,
+								xs: 12,
+								sm: 6,
+								md: 4,
+								lg: 4,
+								xl: 4,
+							},
+							datePickerActivationControl(
+								'endDate',
+								'useEndDate',
+								'Enable end date',
+								'Enddatum aktivieren',
+							),
+							{
+								type: 'datePicker',
+								attr: 'endDate',
+								hidden: 'data.useEndDate !== true',
+								label: translate('End date (optional)', 'Enddatum (optional)'),
+								help: translate(
+									'Deactivate this heating mode on this date when it is active.',
+									'Heizmodus an diesem Datum deaktivieren, wenn er aktiv ist.',
+								),
+								default: '',
+								newLine: false,
 								xs: 12,
 								sm: 6,
 								md: 4,
@@ -423,7 +646,16 @@ function scheduleConfigurationData(
 			...mapping,
 			name: mappingDisplayName(mapping, schedule.setpointMappings, numericStateNames),
 		})),
-		heatingModes: schedule.heatingModes.map(mode => ({ ...mode, weekdays: [...mode.weekdays] })),
+		heatingModes: schedule.heatingModes.map(mode => ({
+			...mode,
+			weekdays: [...mode.weekdays],
+			useStartDate: mode.startDate !== undefined,
+			useEndDate: mode.endDate !== undefined,
+		})),
+		startDate: schedule.startDate ?? '',
+		endDate: schedule.endDate ?? '',
+		useStartDate: schedule.startDate !== undefined,
+		useEndDate: schedule.endDate !== undefined,
 	};
 }
 
@@ -453,6 +685,15 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 	 */
 	public constructor(adapter: HeatingSchedulerManagementHost) {
 		super(adapter, true);
+	}
+
+	/** Keeps the Device Manager action cache usable before the GUI requests a device reload. */
+	public refreshDeviceCache(): void {
+		const devices = new Map<string, DeviceInfo<'adapter', string>>();
+		for (const schedule of this.adapter.getHeatingSchedules()) {
+			devices.set(JSON.stringify(schedule.id), this.deviceInfo(schedule));
+		}
+		(this as unknown as { devices?: Map<string, DeviceInfo<'adapter', string>> }).devices = devices;
 	}
 
 	private safeActionHandler<TArgs extends unknown[]>(
@@ -493,8 +734,9 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 						if (!data) {
 							return { refresh: 'none' };
 						}
-						await this.adapter.addHeatingSchedule(getName(data));
-						return { refresh: 'devices' };
+						const scheduleId = await this.adapter.addHeatingSchedule(getName(data));
+						this.refreshDeviceCache();
+						return this.refreshDeviceInGui(scheduleId);
 					}),
 				},
 			],
@@ -509,26 +751,40 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 		}
 	}
 
+	protected getDeviceInfo(deviceId: string): DeviceInfo<'adapter', string> {
+		const schedule = this.adapter.getHeatingSchedules().find(candidate => candidate.id === deviceId);
+		if (!schedule) {
+			throw new Error(`Heating schedule ${deviceId} not found`);
+		}
+		return this.deviceInfo(schedule);
+	}
+
 	private deviceInfo(schedule: HeatingSchedule): DeviceInfo<'adapter', string> {
 		const configureHandler = this.safeActionHandler(
 			'configureSchedule',
 			async (_id: string, context: ActionContext): Promise<ActionResult> => {
 				const numericStateNames = await this.adapter.getNumericStateNames();
-				const data = await context.showForm(scheduleConfigurationForm(), {
+				const formOptions = {
 					title: translate('Configure heating schedule', 'Heizplan konfigurieren'),
+					dialogName: `heating-schedule-${schedule.id}`,
 					data: scheduleConfigurationData(schedule, numericStateNames),
-					buttons: ['apply', 'cancel'],
+					buttons: ['apply', 'cancel'] as ('apply' | 'cancel')[],
+					ignoreApplyDisabled: true,
 					applyDisabledRule: numericStateConfigurationDisabledRule(Object.keys(numericStateNames)),
-				});
+				};
+				const data = await context.showForm(scheduleConfigurationForm(), formOptions);
 				if (!data) {
 					return { refresh: 'none' };
 				}
 				await this.adapter.updateHeatingSchedule(schedule.id, {
 					name: schedule.name,
 					heatingType: getHeatingType(data),
+					startDate: data.useStartDate === true ? normalizeDatePickerValue(data.startDate) : '',
+					endDate: data.useEndDate === true ? normalizeDatePickerValue(data.endDate) : '',
 					setpointMappings: normalizeMappingFormRows(data.setpointMappings),
-					heatingModes: Array.isArray(data.heatingModes) ? data.heatingModes : [],
+					heatingModes: normalizeHeatingModeFormRows(data.heatingModes),
 				});
+				this.refreshDeviceCache();
 				return this.refreshDeviceInGui(schedule.id);
 			},
 		);
@@ -549,6 +805,7 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 					return { refresh: 'none' };
 				}
 				await this.adapter.renameHeatingSchedule(schedule.id, getName(data));
+				this.refreshDeviceCache();
 				return this.refreshDeviceInGui(schedule.id);
 			},
 		);
@@ -595,6 +852,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 					timeout: 120_000,
 					handler: this.safeActionHandler('deleteSchedule', async () => {
 						await this.adapter.removeHeatingSchedule(schedule.id);
+						this.refreshDeviceCache();
+						await this.sendCommandToGui({ command: 'delete', deviceId: schedule.id });
 						return { refresh: 'devices' };
 					}),
 				},
@@ -618,6 +877,84 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				newLine: true,
 				xs: 12,
 			},
+			...(schedule.startDate || schedule.endDate
+				? {
+						scheduleActivationDates: {
+							type: 'staticText',
+							text: activationDateText(schedule.startDate, schedule.endDate),
+							size: 'small',
+							style: {
+								color: 'text.secondary',
+								fontSize: '0.72rem',
+								marginTop: -8,
+								marginBottom: 4,
+								paddingLeft: 4,
+							},
+							newLine: true,
+							xs: 12,
+						},
+					}
+				: {}),
+			...(schedule.heatingModes.length
+				? {
+						scheduleActivate: {
+							type: 'state',
+							oid: `schedules.${schedule.id}.activate`,
+							control: 'button',
+							buttonValue: true,
+							falseText: translate('Apply matching heating mode', 'Passenden Heizmodus anwenden'),
+							icon: 'play',
+							variant: 'text',
+							tooltip: translate(
+								'Apply the most recent heating mode for the current time',
+								'Letzten passenden Heizmodus für die aktuelle Zeit anwenden',
+							),
+							style: {
+								marginTop: -10,
+								marginBottom: 2,
+								textAlign: 'right',
+								display: 'flex',
+								justifyContent: 'flex-end',
+							},
+							newLine: true,
+							xs: 12,
+						},
+						scheduleActivateActive: {
+							type: 'state',
+							oid: `schedules.${schedule.id}.activateActive`,
+							control: 'button',
+							buttonValue: true,
+							falseText: translate('Apply active heating mode', 'Aktiven Heizmodus anwenden'),
+							icon: 'play',
+							variant: 'text',
+							tooltip: translate(
+								'Apply the heating mode currently selected by automation',
+								'Den aktuell von der Automatik ausgewählten Heizmodus anwenden',
+							),
+							dependsOnStates: {
+								scheduleActive: `.schedules.${schedule.id}.active`,
+								...Object.fromEntries(
+									schedule.heatingModes.map((mode, index) => [
+										`modeActive${index}`,
+										`.schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+									]),
+								),
+							},
+							hidden: `!_states.scheduleActive?.val || !(${schedule.heatingModes
+								.map((_mode, index) => `_states.modeActive${index}?.val === true`)
+								.join(' || ')})`,
+							style: {
+								marginTop: -6,
+								marginBottom: 2,
+								textAlign: 'right',
+								display: 'flex',
+								justifyContent: 'flex-end',
+							},
+							newLine: true,
+							xs: 12,
+						},
+					}
+				: {}),
 			...Object.fromEntries(
 				schedule.setpointMappings.flatMap(mapping => {
 					const controls: [string, ConfigItemAny][] = [
@@ -631,8 +968,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 								label: mappingValueLabel(
 									'Current setpoint',
 									'Aktueller Sollwert',
-									mapping,
-									schedule.setpointMappings,
+									schedule.setpointMappings.indexOf(mapping) + 1,
+									schedule.setpointMappings.length > 1,
 								),
 								unit: '°C',
 								digits: 1,
@@ -654,8 +991,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 								label: mappingValueLabel(
 									'Reported setpoint',
 									'Rückgemeldeter Sollwert',
-									mapping,
-									schedule.setpointMappings,
+									schedule.setpointMappings.indexOf(mapping) + 1,
+									schedule.setpointMappings.length > 1,
 								),
 								unit: '°C',
 								digits: 1,
@@ -695,9 +1032,20 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 							oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
 							control: 'switch',
 							label: mode.name,
-							style: { marginTop: -10, marginBottom: -2 },
+							style: {
+								marginTop: 0,
+								marginBottom: -2,
+								'& .MuiFormControlLabel-root': {
+									width: '100%',
+									justifyContent: 'space-between',
+									margin: 0,
+								},
+								'& .MuiSwitch-root': {
+									marginLeft: 'auto',
+								},
+							},
 							newLine: true,
-							xs: 8,
+							xs: 9,
 							sm: 9,
 						},
 					],
@@ -708,14 +1056,39 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 							oid: `schedules.${schedule.id}.heatingModes.${mode.id}.activate`,
 							control: 'button',
 							buttonValue: true,
-							falseText: translate('Run', 'Start'),
+							falseText: translate('Apply', 'Anwenden'),
 							icon: 'play',
 							variant: 'text',
-							tooltip: translate('Activate this heating mode now', 'Diesen Heizmodus jetzt aktivieren'),
-							style: { marginTop: -10, marginBottom: -2, textAlign: 'right' },
+							tooltip: translate('Apply this heating mode now', 'Diesen Heizmodus jetzt anwenden'),
+							style: {
+								marginTop: 0,
+								marginBottom: -2,
+								textAlign: 'right',
+								display: 'flex',
+								justifyContent: 'flex-end',
+							},
 							newLine: false,
 							xs: 4,
 							sm: 3,
+						},
+					],
+					[
+						`info_${mode.id}`,
+						{
+							type: 'staticText',
+							text: heatingModeScheduleText(mode),
+							size: 'small',
+							style: {
+								color: 'text.secondary',
+								fontSize: '0.7rem',
+								lineHeight: 1.25,
+								whiteSpace: 'pre-line',
+								marginTop: -4,
+								marginBottom: 2,
+								paddingLeft: 4,
+							},
+							newLine: true,
+							xs: 12,
 						},
 					],
 				]),
@@ -736,13 +1109,13 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 		return info;
 	}
 
-	private refreshDeviceInGui(scheduleId: string): ActionResult {
+	private async refreshDeviceInGui(scheduleId: string): Promise<ActionResult> {
 		const schedule = this.adapter.getHeatingSchedules().find(candidate => candidate.id === scheduleId);
 		if (!schedule) {
 			return { refresh: 'devices' };
 		}
-		// Admin 8.3.5 does not reliably apply the v3 `update` response. Reload the
-		// complete device list so newly added or removed heating modes are visible.
+		this.refreshDeviceCache();
+		await this.sendCommandToGui({ command: 'infoUpdate', deviceId: schedule.id });
 		return { refresh: 'devices' };
 	}
 }

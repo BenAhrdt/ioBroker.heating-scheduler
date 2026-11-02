@@ -1,16 +1,20 @@
 /*
  * Heating Scheduler adapter configuration/runtime bridge.
  *
- * Schedule evaluation and target-state writes are intentionally not part of
- * this step. The file provides their configuration and runtime state bridge.
+ * Schedule evaluation, target-state writes, and the runtime state bridge live
+ * in this adapter entry point.
  */
 import * as utils from '@iobroker/adapter-core';
 import {
 	DEFAULT_HEATING_TYPE,
 	isFeedbackMode,
+	isDateInActivationRange,
 	isEmptyConfiguration,
 	isWeekdaySelection,
+	isValidCalendarDate,
+	isValidDateRange,
 	normalizeConfiguration,
+	selectHeatingModeForManualActivation,
 	type FeedbackMode,
 	type HeatingType,
 	type HeatingSchedulesConfiguration,
@@ -52,6 +56,7 @@ class HeatingScheduler extends utils.Adapter {
 	private readonly lastFeedbackValues = new Map<string, number>();
 	private readonly lastFeedbackUpdateTokens = new Map<string, string>();
 	private readonly lastScheduleExecutions = new Map<string, string>();
+	private readonly processedActivationTransitions = new Set<string>();
 	private configurationQueue: Promise<void> = Promise.resolve();
 	private readonly pendingOperations = new Set<Promise<void>>();
 	private unloading = false;
@@ -167,10 +172,13 @@ class HeatingScheduler extends utils.Adapter {
 
 	public async updateHeatingSchedule(id: string, patch: HeatingScheduleConfigurationPatch): Promise<void> {
 		const validNumericStateIds = new Set(Object.keys(await this.getNumericStateNames()));
-		return this.enqueueConfigurationMutation(current => ({
-			result: undefined,
-			configuration: updateScheduleConfiguration(current, id, patch, validNumericStateIds),
-		}));
+		return this.enqueueConfigurationMutation(
+			current => ({
+				result: undefined,
+				configuration: updateScheduleConfiguration(current, id, patch, validNumericStateIds),
+			}),
+			id,
+		);
 	}
 
 	private enqueueConfigurationMutation<T>(
@@ -178,12 +186,13 @@ class HeatingScheduler extends utils.Adapter {
 			configuration: HeatingSchedulesConfiguration;
 			result: T;
 		},
+		activationScheduleId?: string,
 	): Promise<T> {
 		let result!: T;
 		const operation = this.configurationQueue.then(async () => {
 			const changed = mutation(this.configuration);
 			result = changed.result;
-			await this.persistConfiguration(changed.configuration);
+			await this.persistConfiguration(changed.configuration, activationScheduleId);
 		});
 		this.configurationQueue = operation.then(
 			() => undefined,
@@ -197,7 +206,10 @@ class HeatingScheduler extends utils.Adapter {
 		return operation.then(() => result);
 	}
 
-	private async persistConfiguration(next: HeatingSchedulesConfiguration | undefined): Promise<void> {
+	private async persistConfiguration(
+		next: HeatingSchedulesConfiguration | undefined,
+		activationScheduleId?: string,
+	): Promise<void> {
 		const previous = this.configuration;
 		if (next) {
 			this.configuration = normalizeConfiguration(next);
@@ -213,6 +225,10 @@ class HeatingScheduler extends utils.Adapter {
 			native: structuredClone(this.configuration),
 		});
 		await this.synchronizeScheduleObjects(previous, this.configuration);
+		this.scheduleManagement?.refreshDeviceCache();
+		if (next && activationScheduleId) {
+			await this.applyInitialActivationStates(activationScheduleId);
+		}
 		await this.synchronizeFeedbackMonitoring(previous, this.configuration);
 		if (next) {
 			this.scheduleConfigurationBackup();
@@ -310,6 +326,83 @@ class HeatingScheduler extends utils.Adapter {
 		this.trackEventOperation('initial schedule evaluation', () => this.evaluateSchedules());
 	}
 
+	private localDate(): string {
+		const now = new Date();
+		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+	}
+
+	private async applyInitialActivationStates(scheduleId: string): Promise<void> {
+		const date = this.localDate();
+		for (const schedule of this.configuration.schedules) {
+			if (schedule.id !== scheduleId) {
+				continue;
+			}
+			const scheduleActive =
+				schedule.startDate || schedule.endDate
+					? isDateInActivationRange(date, schedule.startDate, schedule.endDate)
+					: true;
+			await this.setStateChangedAsync(`schedules.${schedule.id}.active`, { val: scheduleActive, ack: true });
+			for (const mode of schedule.heatingModes) {
+				const modeActive =
+					mode.startDate || mode.endDate
+						? isDateInActivationRange(date, mode.startDate, mode.endDate)
+						: false;
+				await this.setStateChangedAsync(`schedules.${schedule.id}.heatingModes.${mode.id}.active`, {
+					val: modeActive,
+					ack: true,
+				});
+			}
+		}
+	}
+
+	private async applyDateActivationTransition(
+		stateId: string,
+		startDate: string | undefined,
+		endDate: string | undefined,
+		date: string,
+	): Promise<void> {
+		let currentValue = (await this.getStateAsync(stateId))?.val;
+		if (startDate === date) {
+			const key = `${stateId}:start:${startDate}`;
+			if (!this.processedActivationTransitions.has(key)) {
+				this.processedActivationTransitions.add(key);
+				if (currentValue !== true) {
+					await this.setStateChangedAsync(stateId, { val: true, ack: true });
+					currentValue = true;
+				}
+			}
+		}
+		if (endDate === date) {
+			const key = `${stateId}:end:${endDate}`;
+			if (!this.processedActivationTransitions.has(key)) {
+				this.processedActivationTransitions.add(key);
+				if (currentValue === true) {
+					await this.setStateChangedAsync(stateId, { val: false, ack: true });
+					currentValue = false;
+				}
+			}
+		}
+	}
+
+	private async applyDateActivationTransitions(date: string): Promise<void> {
+		for (const schedule of this.configuration.schedules) {
+			await this.applyDateActivationTransition(
+				`schedules.${schedule.id}.active`,
+				schedule.startDate,
+				schedule.endDate,
+				date,
+			);
+			for (const mode of schedule.heatingModes) {
+				await this.applyDateActivationTransition(
+					`schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+					mode.startDate,
+					mode.endDate,
+					date,
+				);
+			}
+		}
+	}
+
 	private async synchronizeScheduleObjects(
 		previous: HeatingSchedulesConfiguration,
 		next: HeatingSchedulesConfiguration,
@@ -341,6 +434,50 @@ class HeatingScheduler extends utils.Adapter {
 					write: true,
 				},
 				true,
+			);
+			await this.ensureRuntimeState(
+				`schedules.${schedule.id}.activate`,
+				{
+					name: { en: 'Apply matching heating mode', de: 'Passenden Heizmodus anwenden' },
+					type: 'boolean',
+					role: 'button',
+					read: false,
+					write: true,
+				},
+				false,
+			);
+			await this.ensureRuntimeState(
+				`schedules.${schedule.id}.activateActive`,
+				{
+					name: { en: 'Apply active heating mode', de: 'Aktiven Heizmodus anwenden' },
+					type: 'boolean',
+					role: 'button',
+					read: false,
+					write: true,
+				},
+				false,
+			);
+			await this.ensureConfigurationState(
+				`schedules.${schedule.id}.startDate`,
+				{
+					name: { en: 'Start date (optional)', de: 'Startdatum (optional)' },
+					type: 'string',
+					role: 'date.start',
+					read: true,
+					write: true,
+				},
+				schedule.startDate ?? '',
+			);
+			await this.ensureConfigurationState(
+				`schedules.${schedule.id}.endDate`,
+				{
+					name: { en: 'End date (optional)', de: 'Enddatum (optional)' },
+					type: 'string',
+					role: 'date.end',
+					read: true,
+					write: true,
+				},
+				schedule.endDate ?? '',
 			);
 			const previousSchedule = previous.schedules.find(candidate => candidate.id === schedule.id);
 			await this.synchronizeSetpointMappingObjects(schedule, previousSchedule);
@@ -434,7 +571,7 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`${mappingBase}.deviationCountBeforeWrite`,
 				{
-					name: { en: 'Deviations before write', de: 'Abweichungen bis zum Schreiben' },
+					name: { en: 'Deviations before write', de: 'Abweichungen bis zum erneuten Schreiben' },
 					type: 'number',
 					role: 'level',
 					min: 1,
@@ -515,13 +652,24 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`${modeBase}.startDate`,
 				{
-					name: { en: 'Earliest schedule date', de: 'Frühestes Datum des Heizplans' },
+					name: { en: 'Start date (optional)', de: 'Startdatum (optional)' },
 					type: 'string',
 					role: 'date.start',
 					read: true,
 					write: true,
 				},
 				mode.startDate ?? '',
+			);
+			await this.ensureConfigurationState(
+				`${modeBase}.endDate`,
+				{
+					name: { en: 'End date (optional)', de: 'Enddatum (optional)' },
+					type: 'string',
+					role: 'date.end',
+					read: true,
+					write: true,
+				},
+				mode.endDate ?? '',
 			);
 			await this.ensureConfigurationState(
 				`${modeBase}.startTime`,
@@ -555,12 +703,12 @@ class HeatingScheduler extends utils.Adapter {
 					read: true,
 					write: true,
 				},
-				true,
+				false,
 			);
 			await this.ensureRuntimeState(
 				`${modeBase}.activate`,
 				{
-					name: { en: 'Activate now', de: 'Jetzt aktivieren' },
+					name: { en: 'Apply now', de: 'Jetzt anwenden' },
 					type: 'boolean',
 					role: 'button',
 					read: false,
@@ -615,12 +763,54 @@ class HeatingScheduler extends utils.Adapter {
 		}
 		try {
 			const scheduleId = parts[1];
-			if (parts.length === 3 && parts[2] === 'active') {
-				if (typeof state.val !== 'boolean') {
-					throw new Error('The schedule active state must be boolean');
+			if (parts.length === 3) {
+				if (parts[2] === 'active') {
+					if (typeof state.val !== 'boolean') {
+						throw new Error('The schedule active state must be boolean');
+					}
+					await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
+					return;
 				}
-				await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
-				return;
+				if (parts[2] === 'activate') {
+					if (state.val === true) {
+						await this.executeCurrentHeatingMode(scheduleId);
+					}
+					await this.setStateChangedAsync(relativeId, { val: false, ack: true });
+					return;
+				}
+				if (parts[2] === 'activateActive') {
+					try {
+						if (state.val === true) {
+							await this.executeActiveHeatingMode(scheduleId);
+						}
+					} finally {
+						await this.setStateChangedAsync(relativeId, { val: false, ack: true });
+					}
+					return;
+				}
+				if (parts[2] === 'startDate' || parts[2] === 'endDate') {
+					const date = typeof state.val === 'string' ? state.val.trim() : '';
+					if (date && !isValidCalendarDate(date)) {
+						throw new Error(`${parts[2]} must use YYYY-MM-DD`);
+					}
+					const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
+					if (!schedule) {
+						throw new Error(`Schedule ${scheduleId} does not exist`);
+					}
+					const startDate = parts[2] === 'startDate' ? date || undefined : schedule.startDate;
+					const endDate = parts[2] === 'endDate' ? date || undefined : schedule.endDate;
+					if (!isValidDateRange(startDate, endDate)) {
+						throw new Error('The schedule start date must be before or equal to its end date');
+					}
+					await this.updateConfigurationFromState(scheduleId, current => {
+						if (date) {
+							current[parts[2] as 'startDate' | 'endDate'] = date;
+						} else {
+							delete current[parts[2] as 'startDate' | 'endDate'];
+						}
+					});
+					return;
+				}
 			}
 			if (parts.length < 5) {
 				return;
@@ -732,13 +922,32 @@ class HeatingScheduler extends utils.Adapter {
 					return;
 				}
 				if (field === 'startDate') {
-					if (typeof state.val !== 'string' || (state.val !== '' && !this.isValidDate(state.val))) {
+					if (typeof state.val !== 'string' || (state.val !== '' && !isValidCalendarDate(state.val))) {
 						throw new Error('Start date must use YYYY-MM-DD');
+					}
+					const nextStartDate = state.val || undefined;
+					if (!isValidDateRange(nextStartDate, target.endDate)) {
+						throw new Error('The heating-mode start date must be before or equal to its end date');
 					}
 					if (state.val === '') {
 						delete target.startDate;
 					} else {
 						target.startDate = state.val;
+					}
+					return;
+				}
+				if (field === 'endDate') {
+					if (typeof state.val !== 'string' || (state.val !== '' && !isValidCalendarDate(state.val))) {
+						throw new Error('End date must use YYYY-MM-DD');
+					}
+					const nextEndDate = state.val || undefined;
+					if (!isValidDateRange(target.startDate, nextEndDate)) {
+						throw new Error('The heating-mode start date must be before or equal to its end date');
+					}
+					if (state.val === '') {
+						delete target.endDate;
+					} else {
+						target.endDate = state.val;
 					}
 					return;
 				}
@@ -823,6 +1032,18 @@ class HeatingScheduler extends utils.Adapter {
 		if (!schedule) {
 			return undefined;
 		}
+		if (parts.length === 3) {
+			switch (parts[2]) {
+				case 'startDate':
+					return schedule.startDate || '';
+				case 'endDate':
+					return schedule.endDate || '';
+				case 'active':
+					return undefined;
+				default:
+					return undefined;
+			}
+		}
 		if (parts[2] === 'setpointMappings' && parts.length === 5) {
 			const mapping = schedule.setpointMappings.find(candidate => candidate.id === parts[3]);
 			if (!mapping) {
@@ -861,6 +1082,8 @@ class HeatingScheduler extends utils.Adapter {
 				return mode.startTime;
 			case 'startDate':
 				return mode.startDate || '';
+			case 'endDate':
+				return mode.endDate || '';
 			case 'temperature':
 				return mode.temperature;
 			default:
@@ -892,14 +1115,6 @@ class HeatingScheduler extends utils.Adapter {
 		return number;
 	}
 
-	private isValidDate(value: string): boolean {
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-			return false;
-		}
-		const parsed = new Date(`${value}T00:00:00Z`);
-		return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-	}
-
 	private async executeHeatingMode(scheduleId: string, modeId: string): Promise<void> {
 		const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
 		const mode = schedule?.heatingModes.find(candidate => candidate.id === modeId);
@@ -921,16 +1136,79 @@ class HeatingScheduler extends utils.Adapter {
 		}
 	}
 
+	private async executeCurrentHeatingMode(scheduleId: string): Promise<void> {
+		const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
+		if (!schedule) {
+			throw new Error(`Heating schedule ${scheduleId} does not exist`);
+		}
+		const now = new Date();
+		const weekday = ((now.getDay() + 6) % 7) + 1;
+		const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
+		const mode = selectHeatingModeForManualActivation(schedule, weekday, minutesSinceMidnight);
+		if (!mode) {
+			this.log.warn(`No matching heating mode found for manual activation of ${scheduleId}`);
+			return;
+		}
+		await this.executeHeatingMode(scheduleId, mode.id);
+	}
+
+	private async executeActiveHeatingMode(scheduleId: string): Promise<void> {
+		const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
+		if (!schedule) {
+			throw new Error(`Heating schedule ${scheduleId} does not exist`);
+		}
+		if ((await this.getStateAsync(`schedules.${scheduleId}.active`))?.val !== true) {
+			this.log.debug(`Skipped active heating mode activation for inactive schedule ${scheduleId}`);
+			return;
+		}
+		const activeModes: HeatingSchedule['heatingModes'] = [];
+		for (const mode of schedule.heatingModes) {
+			if ((await this.getStateAsync(`schedules.${scheduleId}.heatingModes.${mode.id}.active`))?.val === true) {
+				activeModes.push(mode);
+			}
+		}
+		if (!activeModes.length) {
+			this.log.debug(`Skipped active heating mode activation for ${scheduleId}: no mode is active`);
+			return;
+		}
+		const now = new Date();
+		const weekday = ((now.getDay() + 6) % 7) + 1;
+		const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
+		const mode = selectHeatingModeForManualActivation(
+			{ heatingModes: activeModes },
+			weekday,
+			minutesSinceMidnight,
+			false,
+		);
+		if (!mode) {
+			this.log.debug(`Skipped active heating mode activation for ${scheduleId}: no matching mode`);
+			return;
+		}
+		await this.executeHeatingMode(scheduleId, mode.id);
+	}
+
 	private feedbackKey(scheduleId: string, mappingId: string): string {
 		return `${scheduleId}:${mappingId}`;
 	}
 
 	private async handleFeedbackStateChange(id: string, state: ioBroker.State): Promise<void> {
-		const feedbackMappings = this.configuration.schedules.flatMap(schedule =>
-			schedule.setpointMappings
-				.filter(mapping => mapping.feedbackStateId === id)
-				.map(mapping => ({ scheduleId: schedule.id, mapping })),
-		);
+		const feedbackMappings: Array<{
+			scheduleId: string;
+			mapping: HeatingSchedule['setpointMappings'][number];
+		}> = [];
+		for (const schedule of this.configuration.schedules) {
+			const mappings = schedule.setpointMappings.filter(mapping => mapping.feedbackStateId === id);
+			if (!mappings.length) {
+				continue;
+			}
+			if ((await this.getStateAsync(`schedules.${schedule.id}.active`))?.val !== true) {
+				for (const mapping of mappings) {
+					this.feedbackDeviationCounts.delete(this.feedbackKey(schedule.id, mapping.id));
+				}
+				continue;
+			}
+			feedbackMappings.push(...mappings.map(mapping => ({ scheduleId: schedule.id, mapping })));
+		}
 		if (!feedbackMappings.length) {
 			return;
 		}
@@ -982,6 +1260,10 @@ class HeatingScheduler extends utils.Adapter {
 		const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
 		const mapping = schedule?.setpointMappings.find(candidate => candidate.id === mappingId);
 		if (!mapping?.feedbackStateId || mapping.feedbackMode !== 2) {
+			return;
+		}
+		if ((await this.getStateAsync(`schedules.${scheduleId}.active`))?.val !== true) {
+			this.feedbackDeviationCounts.delete(this.feedbackKey(scheduleId, mappingId));
 			return;
 		}
 		const state = await this.getForeignStateAsync(mapping.feedbackStateId);
@@ -1063,9 +1345,10 @@ class HeatingScheduler extends utils.Adapter {
 
 	private async evaluateSchedules(): Promise<void> {
 		const now = new Date();
-		const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+		const date = this.localDate();
 		const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 		const weekday = ((now.getDay() + 6) % 7) + 1;
+		await this.applyDateActivationTransitions(date);
 		for (const schedule of this.configuration.schedules) {
 			const scheduleActive = await this.getStateAsync(`schedules.${schedule.id}.active`);
 			if (scheduleActive?.val !== true) {
@@ -1073,7 +1356,7 @@ class HeatingScheduler extends utils.Adapter {
 			}
 			for (const mode of schedule.heatingModes) {
 				const modeActive = await this.getStateAsync(`schedules.${schedule.id}.heatingModes.${mode.id}.active`);
-				if (modeActive?.val !== true || (mode.startDate && date < mode.startDate)) {
+				if (modeActive?.val !== true) {
 					continue;
 				}
 				const weekdayMatches =
@@ -1230,9 +1513,9 @@ class HeatingScheduler extends utils.Adapter {
 			callbackCalled = true;
 			callback();
 		};
-		const timeout = setTimeout(finish, 5_000);
+		const timeout = this.setTimeout(finish, 5_000);
 		void Promise.allSettled(pending).then(() => {
-			clearTimeout(timeout);
+			this.clearTimeout(timeout);
 			finish();
 		});
 	}

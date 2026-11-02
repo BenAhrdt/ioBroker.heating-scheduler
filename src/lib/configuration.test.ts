@@ -1,5 +1,12 @@
 import { expect } from 'chai';
-import { createScheduleId, normalizeConfiguration, validateConfiguration } from './configuration';
+import {
+	createScheduleId,
+	isDateInActivationRange,
+	isValidDateRange,
+	normalizeConfiguration,
+	selectHeatingModeForManualActivation,
+	validateConfiguration,
+} from './configuration';
 
 describe('Heating Scheduler configuration', () => {
 	it('normalizes a valid versioned configuration', () => {
@@ -95,6 +102,41 @@ describe('Heating Scheduler configuration', () => {
 		expect(numeric.schedules[0].heatingModes[0].weekdaySelection).to.equal(0);
 	});
 
+	it('normalizes optional activation dates for schedules and heating modes', () => {
+		const configuration = normalizeConfiguration({
+			schemaVersion: 3,
+			schedules: [
+				{
+					id: 'schedule_001',
+					name: 'Living room',
+					startDate: '2026-11-03',
+					endDate: '2026-12-01',
+					heatingModes: [
+						{
+							name: 'Comfort',
+							startDate: '2026-11-05',
+							endDate: '2026-11-20',
+						},
+					],
+				},
+			],
+			nextScheduleNumber: 2,
+		});
+
+		expect(configuration.schedules[0]).to.include({
+			startDate: '2026-11-03',
+			endDate: '2026-12-01',
+		});
+		expect(configuration.schedules[0].heatingModes[0]).to.include({
+			startDate: '2026-11-05',
+			endDate: '2026-11-20',
+		});
+		expect(isValidDateRange('2026-11-03', '2026-12-01')).to.equal(true);
+		expect(isValidDateRange('2026-12-01', '2026-11-03')).to.equal(false);
+		expect(isDateInActivationRange('2026-11-05', '2026-11-03', '2026-12-01')).to.equal(true);
+		expect(isDateInActivationRange('2026-12-01', '2026-11-03', '2026-12-01')).to.equal(false);
+	});
+
 	it('drops invalid and duplicate entries while keeping a usable configuration', () => {
 		expect(
 			normalizeConfiguration({
@@ -147,10 +189,75 @@ describe('Heating Scheduler configuration', () => {
 		).to.have.length(2);
 	});
 
-	it('creates stable, non-reused-looking technical IDs', () => {
-		expect(createScheduleId(1, new Set(['schedule_001']))).to.deep.equal({
-			id: 'schedule_002',
-			nextScheduleNumber: 3,
+	it('creates the smallest free technical schedule ID', () => {
+		expect(createScheduleId(99, new Set(['schedule_001', 'schedule_002', 'schedule_005']))).to.deep.equal({
+			id: 'schedule_003',
+			nextScheduleNumber: 4,
 		});
+	});
+
+	it('selects the most recent applicable heating mode for manual activation', () => {
+		const schedule = normalizeConfiguration({
+			schemaVersion: 3,
+			schedules: [
+				{
+					id: 'schedule_001',
+					name: 'Living room',
+					heatingModes: [
+						{ name: 'Noon', startTime: '12:00', temperature: 21 },
+						{ name: 'Afternoon', startTime: '13:00', temperature: 22 },
+					],
+				},
+			],
+			nextScheduleNumber: 2,
+		}).schedules[0];
+
+		expect(selectHeatingModeForManualActivation(schedule, 1, 12 * 60 + 30)?.name).to.equal('Noon');
+	});
+
+	it('falls back to the last matching weekday rule', () => {
+		const schedule = normalizeConfiguration({
+			schemaVersion: 3,
+			schedules: [
+				{
+					id: 'schedule_001',
+					name: 'Living room',
+					heatingModes: [
+						{
+							name: 'Weekday comfort',
+							weekdays: [1, 2, 3, 4, 5],
+							weekdaySelection: 1,
+							startTime: '12:00',
+						},
+					],
+				},
+			],
+			nextScheduleNumber: 2,
+		}).schedules[0];
+
+		expect(selectHeatingModeForManualActivation(schedule, 6, 12 * 60 + 30)?.name).to.equal('Weekday comfort');
+	});
+
+	it('can restrict manual selection to the current weekday', () => {
+		const schedule = normalizeConfiguration({
+			schemaVersion: 3,
+			schedules: [
+				{
+					id: 'schedule_001',
+					name: 'Living room',
+					heatingModes: [
+						{
+							name: 'Weekday comfort',
+							weekdays: [1, 2, 3, 4, 5],
+							weekdaySelection: 1,
+							startTime: '12:00',
+						},
+					],
+				},
+			],
+			nextScheduleNumber: 2,
+		}).schedules[0];
+
+		expect(selectHeatingModeForManualActivation(schedule, 6, 12 * 60 + 30, false)).to.equal(undefined);
 	});
 });

@@ -77,8 +77,10 @@ export interface HeatingMode {
 	weekdaySelection: WeekdaySelection;
 	/** Local start time in HH:mm format. */
 	startTime: string;
-	/** Earliest calendar date on which the schedule may assign this mode. */
+	/** Calendar date on which this mode is activated when it is inactive. */
 	startDate?: string;
+	/** Calendar date on which this mode is deactivated. */
+	endDate?: string;
 	/** Target temperature for this initial rule. */
 	temperature: number;
 }
@@ -91,6 +93,10 @@ export interface HeatingSchedule {
 	name: string;
 	/** Heating system represented by this schedule. */
 	heatingType: HeatingType;
+	/** Calendar date on which this schedule is activated. */
+	startDate?: string;
+	/** Calendar date on which this schedule is deactivated. */
+	endDate?: string;
 	/** Independent Sollwert-/Ist-Sollwert relationships. */
 	setpointMappings: HeatingScheduleSetpointMapping[];
 	/** Heating modes configured below this schedule. */
@@ -99,6 +105,65 @@ export interface HeatingSchedule {
 	nextSetpointMappingNumber: number;
 	/** Next generated mode number for this schedule. */
 	nextHeatingModeNumber: number;
+}
+
+function heatingModeMatchesWeekday(mode: HeatingMode, weekday: number): boolean {
+	return mode.weekdaySelection === 0
+		? true
+		: mode.weekdaySelection === 1
+			? mode.weekdays.includes(weekday)
+			: !mode.weekdays.includes(weekday);
+}
+
+function heatingModeStartMinutes(mode: HeatingMode): number {
+	const [hours, minutes] = mode.startTime.split(':').map(Number);
+	return hours * 60 + minutes;
+}
+
+/**
+ * Selects the most recent recurring heating-mode rule for manual application.
+ * Active states and date boundaries are deliberately ignored.
+ *
+ * @param schedule schedule whose heating modes should be searched
+ * @param weekday current weekday, Monday = 1 through Sunday = 7
+ * @param minutesSinceMidnight current local time in minutes
+ * @param includePreviousWeekdays whether to use the previous matching weekday as a fallback
+ */
+export function selectHeatingModeForManualActivation(
+	schedule: Pick<HeatingSchedule, 'heatingModes'>,
+	weekday: number,
+	minutesSinceMidnight: number,
+	includePreviousWeekdays = true,
+): HeatingMode | undefined {
+	if (
+		!Number.isInteger(weekday) ||
+		weekday < 1 ||
+		weekday > 7 ||
+		!Number.isInteger(minutesSinceMidnight) ||
+		minutesSinceMidnight < 0 ||
+		minutesSinceMidnight >= 24 * 60
+	) {
+		return undefined;
+	}
+
+	let selected: { mode: HeatingMode; elapsedMinutes: number } | undefined;
+	for (let daysAgo = 0; daysAgo < (includePreviousWeekdays ? 7 : 1); daysAgo += 1) {
+		const occurrenceWeekday = ((weekday - 1 - daysAgo + 7) % 7) + 1;
+		for (const mode of schedule.heatingModes) {
+			if (!heatingModeMatchesWeekday(mode, occurrenceWeekday)) {
+				continue;
+			}
+			const startMinutes = heatingModeStartMinutes(mode);
+			if (daysAgo === 0 && startMinutes > minutesSinceMidnight) {
+				continue;
+			}
+			const elapsedMinutes = daysAgo * 24 * 60 + minutesSinceMidnight - startMinutes;
+			if (!selected || elapsedMinutes < selected.elapsedMinutes) {
+				selected = { mode, elapsedMinutes };
+			}
+		}
+	}
+	return selected?.mode;
 }
 
 /** The complete, authoritative configuration stored in `schedules.native`. */
@@ -183,6 +248,36 @@ function normalizeDate(value: unknown): string | undefined {
 	}
 	const parsed = new Date(`${date}T00:00:00Z`);
 	return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ? undefined : date;
+}
+
+/**
+ * Returns true when the value is a valid local calendar date in YYYY-MM-DD format.
+ *
+ * @param value candidate value to validate
+ */
+export function isValidCalendarDate(value: unknown): value is string {
+	return normalizeDate(value) !== undefined;
+}
+
+/**
+ * Returns true when the optional date range is ordered chronologically.
+ *
+ * @param startDate optional activation start date
+ * @param endDate optional activation end date
+ */
+export function isValidDateRange(startDate?: string, endDate?: string): boolean {
+	return !startDate || !endDate || startDate <= endDate;
+}
+
+/**
+ * Returns whether a date is inside the optional activation range.
+ *
+ * @param date date to test
+ * @param startDate optional activation start date
+ * @param endDate optional activation end date
+ */
+export function isDateInActivationRange(date: string, startDate?: string, endDate?: string): boolean {
+	return (!startDate || date >= startDate) && (!endDate || date < endDate);
 }
 
 function normalizeWeekdays(value: unknown): number[] {
@@ -309,6 +404,7 @@ function normalizeHeatingModes(
 			weekdaySelection: normalizeWeekdaySelection(candidate.weekdaySelection),
 			startTime: TIME_PATTERN.test(startTime) ? startTime : DEFAULT_HEATING_MODE_START_TIME,
 			...(normalizeDate(candidate.startDate) ? { startDate: normalizeDate(candidate.startDate) } : {}),
+			...(normalizeDate(candidate.endDate) ? { endDate: normalizeDate(candidate.endDate) } : {}),
 			temperature: finiteNumber(candidate.temperature, DEFAULT_HEATING_MODE_TEMPERATURE),
 		});
 	}
@@ -330,6 +426,8 @@ function normalizeSchedule(value: unknown): HeatingSchedule | undefined {
 		id,
 		name,
 		heatingType: normalizeHeatingType(value.heatingType),
+		...(normalizeDate(value.startDate) ? { startDate: normalizeDate(value.startDate) } : {}),
+		...(normalizeDate(value.endDate) ? { endDate: normalizeDate(value.endDate) } : {}),
 		setpointMappings: mappings.items,
 		heatingModes: modes.items,
 		nextSetpointMappingNumber: mappings.nextNumber,
@@ -427,6 +525,19 @@ export function validateConfiguration(value: unknown): string[] {
 			if (schedule.heatingType !== undefined && !isHeatingType(schedule.heatingType)) {
 				errors.push(`schedules[${index}].heatingType is invalid.`);
 			}
+			if (schedule.startDate !== undefined && !isValidCalendarDate(schedule.startDate)) {
+				errors.push(`schedules[${index}].startDate is invalid.`);
+			}
+			if (schedule.endDate !== undefined && !isValidCalendarDate(schedule.endDate)) {
+				errors.push(`schedules[${index}].endDate is invalid.`);
+			}
+			if (
+				typeof schedule.startDate === 'string' &&
+				typeof schedule.endDate === 'string' &&
+				!isValidDateRange(schedule.startDate, schedule.endDate)
+			) {
+				errors.push(`schedules[${index}] date range is invalid.`);
+			}
 			if (!Array.isArray(schedule.setpointMappings)) {
 				errors.push(`schedules[${index}].setpointMappings must be an array.`);
 			} else {
@@ -442,6 +553,21 @@ export function validateConfiguration(value: unknown): string[] {
 				for (const [modeIndex, mode] of schedule.heatingModes.entries()) {
 					if (!isRecord(mode) || !isWeekdaySelection(mode.weekdaySelection)) {
 						errors.push(`schedules[${index}].heatingModes[${modeIndex}].weekdaySelection is invalid.`);
+					}
+					if (isRecord(mode)) {
+						if (mode.startDate !== undefined && !isValidCalendarDate(mode.startDate)) {
+							errors.push(`schedules[${index}].heatingModes[${modeIndex}].startDate is invalid.`);
+						}
+						if (mode.endDate !== undefined && !isValidCalendarDate(mode.endDate)) {
+							errors.push(`schedules[${index}].heatingModes[${modeIndex}].endDate is invalid.`);
+						}
+						if (
+							typeof mode.startDate === 'string' &&
+							typeof mode.endDate === 'string' &&
+							!isValidDateRange(mode.startDate, mode.endDate)
+						) {
+							errors.push(`schedules[${index}].heatingModes[${modeIndex}] date range is invalid.`);
+						}
 					}
 				}
 			}
@@ -507,16 +633,16 @@ export function isEmptyConfiguration(configuration: HeatingSchedulesConfiguratio
 }
 
 /**
- * Returns the next stable technical schedule ID and the following counter.
+ * Returns the smallest free technical schedule ID and the following counter.
  *
- * @param nextScheduleNumber next number proposed by the configuration
+ * @param _nextScheduleNumber legacy counter retained in the persisted configuration
  * @param usedIds technical schedule IDs that are already in use
  */
 export function createScheduleId(
-	nextScheduleNumber: number,
+	_nextScheduleNumber: number,
 	usedIds: ReadonlySet<string>,
 ): { id: HeatingScheduleId; nextScheduleNumber: number } {
-	let number = positiveInteger(nextScheduleNumber, 1);
+	let number = 1;
 	let id = `schedule_${String(number).padStart(3, '0')}`;
 	while (usedIds.has(id)) {
 		number += 1;

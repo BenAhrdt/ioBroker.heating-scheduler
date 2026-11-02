@@ -41,11 +41,11 @@ describe('Heating Modes schedule operations', () => {
 		).to.deep.equal([{ id: 'schedule_001', name: 'Lounge' }]);
 	});
 
-	it('deletes a schedule without reusing its number', () => {
+	it('deletes a schedule and reuses the now-free number', () => {
 		const afterDelete = removeScheduleFromConfiguration(initial, 'schedule_001');
 		expect(afterDelete).to.deep.equal({ schemaVersion: 3, schedules: [], nextScheduleNumber: 2 });
 		const next = addScheduleToConfiguration(afterDelete, 'New room');
-		expect(next.id).to.equal('schedule_002');
+		expect(next.id).to.equal('schedule_001');
 	});
 
 	it('rejects empty and duplicate display names', () => {
@@ -95,5 +95,43 @@ describe('Heating Modes schedule operations', () => {
 			feedbackStateId: 'new.feedback',
 		});
 		expect(changed.schedules[0].heatingType).to.equal('underfloorHeating');
+	});
+
+	it('stores optional schedule and heating-mode activation dates', () => {
+		const changed = updateScheduleConfiguration(initial, 'schedule_001', {
+			name: 'Living room',
+			startDate: '2026-11-03',
+			endDate: '2026-12-01',
+			setpointMappings: [],
+			heatingModes: [
+				{
+					name: 'Comfort',
+					weekdays: [1, 2, 3, 4, 5],
+					weekdaySelection: 1,
+					startTime: '08:00',
+					startDate: '2026-11-05',
+					endDate: '2026-11-20',
+					temperature: 21,
+				},
+			],
+		});
+
+		expect(changed.schedules[0]).to.include({
+			startDate: '2026-11-03',
+			endDate: '2026-12-01',
+		});
+		expect(changed.schedules[0].heatingModes[0]).to.include({
+			startDate: '2026-11-05',
+			endDate: '2026-11-20',
+		});
+		expect(() =>
+			updateScheduleConfiguration(initial, 'schedule_001', {
+				name: 'Living room',
+				startDate: '2026-12-01',
+				endDate: '2026-11-03',
+				setpointMappings: [],
+				heatingModes: [],
+			}),
+		).to.throw('start date must be before');
 	});
 });
