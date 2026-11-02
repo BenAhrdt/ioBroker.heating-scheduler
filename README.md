@@ -46,7 +46,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.1 (2026-11-02)
 
 - Updated the adapter logo and README documentation.
 - Prepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "heating-scheduler",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "news": {
+      "0.1.1": {
+        "en": "Updated the adapter logo and README documentation.\nPrepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.",
+        "de": "Adapter-Logo und README-Dokumentation aktualisiert.\nAutomatisches NPM-Publishing für Version-Tags über GitHub Actions und npm Trusted Publishing vorbereitet.",
+        "ru": "Обновлены логотип адаптера и документация README.\nПодготовлена автоматическая публикация тегов версий в npm с помощью GitHub Actions и npm Trusted Publishing.",
+        "pt": "Atualizou o logo do adaptador e o README.\nPreparou a publicação automática de tags de versão em GitHub Actions e npm Trusted Publishing.",
+        "nl": "Het adapterlogo en de README-documentatie zijn bijgewerkt.\nAutomatische npm-publicatie voorbereid voor versietags via GitHub Actions en npm Trusted Publishing.",
+        "fr": "Le logo de l'adaptateur et le README ont été mis à jour.\nA préparé la publication automatique des balises de version via GitHub Actions et npm Trusted Publishing.",
+        "it": "Logo adattatore e documenti README aggiornati.\nPubblicazione automatica di npm per i tag di versione tramite GitHub Actions e npm Trusted Publishing.",
+        "es": "Actualizó el logo del adaptador y la documentación README.\nPreparó la publicación automática de npm para etiquetas de versión a través de GitHub Actions y npm Trusted Publishing.",
+        "pl": "Zaktualizowano logo adaptera i dokumentację README.\nPrzygotowano automatyczne publikowanie npm dla tagów wersji za pomocą GitHub Actions i npm Trusted Publishing.",
+        "uk": "Оновлено логотип адаптера і документацію README.\nПідготовлено автоматичну публікацію npm для тегів версій через дії GitHub та npm Trusted Publishing.",
+        "zh-cn": "更新了适配器徽标和自述文件文档。\n通过 GitHub Actions 和 npm 可信发布为版本标签准备了自动 npm 发布功能。"
+      },
       "0.1.0": {
         "en": "Added the versioned Heating Scheduler schedule configuration foundation with stable technical schedule IDs.\nAdded the neutral Device Manager integration for adding, editing, renaming, and deleting schedules.\nAdded authoritative persistence in the `schedules` object with normalization and schema-version support.\nAdded delayed instance-native configuration backup with deep-change detection and restore support.\nAdded responsive Admin configuration for the Device Manager link, backup delay, and manual backup actions.\nAdded schema-versioned setpoint/feedback mappings and Heating Modes accordions with per-mode runtime activation states.\nRemoved redundant schedule and heating-mode name states; fixed object labels use translated names.\nMade weekday selection and feedback mode numeric state enums, added editable mapped state IDs, tabbed configuration without redundant name fields, and a compact header activation control in the Device Manager.\nRefreshed the Device Manager after saving or renaming, tightened the heating-mode card layout, and added translated global and temperature controls.",
         "de": "Die versionierte Heizungsplankonfiguration mit stabilen technischen Zeitplan-IDs hinzugefügt.\nNeutraler Gerätemanager zum Hinzufügen, Umbenennen und Löschen von Zeitplänen hinzugefügt.\nAutoritative Persistenz im `Schedules`-Objekt mit Normalisierung und Schemaversion hinzugefügt.\nNatives Instanz-Backup mit Deep-Change-Detection-und Restore-Unterstützung hinzugefügt.\nAdmin-Konfiguration für Device Manager-Link, Backup-Delay und manuelle Backups hinzugefügt.\nSollwert-/Feedback-Zuordnungen und Heizmodus-Akkordeons mit Betriebszuständen pro Modus hinzugefügt.\nRedundante Schema- und Heizmodusnamen entfernt; feste Objektnamen sind übersetzt.\nNumerische Zustands-Enumerationen für Wochentage und Feedback-Modus, editierbare Status-IDs, Tab-Konfiguration ohne überflüssige Namensfelder und kompakte Header-Aktivierung im Geräte-Manager.\nNach dem Speichern oder Umbenennen den Gerätemanager aktualisiert, Heizmodus angepasst und globale und Temperaturregler hinzugefügt.",
