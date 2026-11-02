@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "heating-scheduler",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "news": {
+      "0.1.2": {
+        "en": "Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.\nImproved device-list refresh compatibility after saving or renaming a schedule.\nAdded live setpoint and feedback values to schedule cards and a direct start button for every heating mode.",
+        "de": "Kühler und Fußbodenheizung mit typspezifischen Geräte-Manager-Farben und -Symbolen hinzugefügt.\nDie Geräteliste nach dem Speichern oder Umbenennen eines Zeitplans wurde aktualisiert.\nFahrplankarten mit Live-Sollwerten und Direktstarttaste für jeden Heizmodus.",
+        "ru": "Добавлен выбор радиатора и напольного отопления с использованием цветов и значков диспетчера устройств для конкретного типа.\nУлучшена совместимость с обновлением списка устройств после сохранения или переименования расписания.\nДобавлены текущие значения заданного значения и обратная связь в карточках расписания, а также кнопка прямого запуска для каждого режима отопления.",
+        "pt": "Foi adicionada a seleção de radiador e piso com cores e ícones específicos do Device Manager.\nMelhor atualização da lista de dispositivos após salvar ou renomear uma agenda.\nAdicionou valores ao vivo e feedback aos cartões de agenda e um botão direto para cada modo de aquecimento.",
+        "nl": "Selectie van radiator en vloerverwarming toegevoegd met typespecifieke Device Manager-kleuren en -pictogrammen.\nVerbeterde compatibiliteit met het vernieuwen van de apparatenlijst na het opslaan of hernoemen van een schema.\nLive setpoint- en feedbackwaarden toegevoegd aan planningskaarten en een directe startknop voor elke verwarmingsmodus.",
+        "fr": "Ajout d'un radiateur et d'un chauffage par le sol avec des couleurs et des icônes Device Manager spécifiques.\nActualisation de la liste des appareils améliorée après avoir enregistré ou renommé un planning.\nAjout de valeurs de consigne et de feedback en temps réel aux cartes de planning et d'un bouton de démarrage pour chaque mode de chauffage.",
+        "it": "Aggiunta la selezione di radiatori e riscaldamento a pavimento con colori e icone specifici di Device Manager.\nMigliore compatibilità con gli elenchi dopo aver salvato o rinominato un orario.\nAggiunti valori di setpoint e feedback in tempo reale e un tasto di avvio diretto per ogni modalità di riscaldamento.",
+        "es": "Se ha añadido la selección de radiadores y suelo radiante con colores e iconos de Device Manager para cada tipo.\nMejora de la compatibilidad con la lista de dispositivos tras guardar o cambiar el nombre de un horario\nAñadió valores de ajuste y comentarios en vivo a las tarjetas de programación y un botón de inicio para cada modo de calefacción.",
+        "pl": "Dodano wybór grzejników i ogrzewania podłogowego z kolorami i ikonami Menedżera urządzeń specyficznego dla typu.\nPoprawiona kompatybilność z odświeżaniem listy urządzeń po zapisaniu lub zmianie nazwy harmonogramu.\nDodano wartości zadanej na żywo i wartości sprzężenia zwrotnego do kart harmonogramu oraz przycisk bezpośredniego uruchamiania dla każdego trybu ogrzewania.",
+        "uk": "Додано вибір радіатора та підлогового опалення з кольорами та піктограмами диспетчера пристроїв, специфічними для типу.\nПокращена сумісність оновлення списку пристроїв після збереження або перейменування розкладу.\nДодано реальні значення заданої точки та зворотного зв'язку для карт розкладу та кнопка прямого запуску для кожного режиму нагріву.",
+        "zh-cn": "使用特定类型的设备管理器颜色和图标添加了散热器和地板下采暖选项。\n改进了保存或重命名时间表后的设备列表刷新兼容性。\n为计划卡添加了实时设定值和反馈值，并为每种加热模式添加了直接启动按钮。"
+      },
       "0.1.1": {
         "en": "Updated the adapter logo and README documentation.\nPrepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.",
         "de": "Adapter-Logo und README-Dokumentation aktualisiert.\nAutomatisches NPM-Publishing für Version-Tags über GitHub Actions und npm Trusted Publishing vorbereitet.",
