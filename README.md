@@ -40,30 +40,6 @@ The adapter uses schema version 3. A schedule is represented by a valid ioBroker
 
 Heating modes remain children of their schedule. There is no migration from earlier configuration formats because this adapter has no productive legacy installations.
 
-## Development
-
-Install the dependencies and use the following scripts from the adapter directory:
-
-    npm install
-    npm run build
-    npm run check
-    npm run lint
-    npm test
-
-For local ioBroker testing, use the configured dev-server profile:
-
-    npm run dev-server -- watch default
-
-## Publishing
-
-Releases use semantic version tags such as v0.1.0. The GitHub Actions workflow runs type checks and adapter tests for pushes and tags. For tag-based npm publishing, npm Trusted Publishing must be configured for the repository and workflow test-and-release.yml.
-
-The release script updates package.json, io-package.json, the changelog and the Git tag:
-
-    npm run release
-
-See the [ioBroker publishing documentation](https://github.com/ioBroker/ioBroker.docs/blob/master/docs/en/dev/adapterpublish.md) and the [npm Trusted Publishing documentation](https://docs.npmjs.com/trusted-publishers/) for details.
-
 ## Changelog
 
 <!--
