@@ -47,7 +47,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.3 (2026-11-03)
 
 - Updated repository validation, CI workflows and translations after the adapter check.
 - Added optional heating-system activation dates and refined the Device Manager configuration controls.

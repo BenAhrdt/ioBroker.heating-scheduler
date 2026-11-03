@@ -1,6 +1,6 @@
 {
   "name": "iobroker.heating-scheduler",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Create and manage heating schedules for your thermostats",
   "author": {
     "name": "BenAhrdt",
