@@ -26,6 +26,10 @@ var import_configuration = require("./configuration");
 function translate(en, de) {
   return { en, de };
 }
+function temperatureButtonText(temperature) {
+  const value = Number.isInteger(temperature) ? String(temperature) : temperature.toFixed(1);
+  return translate(`${value} \xB0C`, `${value.replace(".", ",")} \xB0C`);
+}
 function getName(data) {
   return typeof (data == null ? void 0 : data.name) === "string" ? data.name.trim() : "";
 }
@@ -170,8 +174,8 @@ function heatingModeScheduleText(mode) {
   const weekdays = mode.weekdaySelection === 0 ? { en: "All days", de: "Alle Tage" } : mode.weekdaySelection === 2 ? { en: `Except ${selectedDaysEn}`, de: `Au\xDFer ${selectedDays}` } : { en: selectedDaysEn, de: selectedDays };
   const dateText = activationDateText(mode.startDate, mode.endDate, true);
   const baseText = {
-    en: `${weekdays.en} \xB7 from ${mode.startTime}`,
-    de: `${weekdays.de} \xB7 ab ${mode.startTime}`
+    en: `${weekdays.en} \xB7 ${mode.startTime}`,
+    de: `${weekdays.de} \xB7 ${mode.startTime}`
   };
   return {
     en: dateText ? `${baseText.en}
@@ -779,22 +783,37 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
       ]
     };
     const modeControls = {
+      scheduleActiveLabel: {
+        type: "staticText",
+        text: translate("Heating schedule active", "Heizplan aktiv"),
+        style: {
+          marginTop: -48,
+          marginBottom: 8,
+          display: "flex",
+          alignItems: "center",
+          fontSize: "1rem"
+        },
+        newLine: true,
+        xs: 8,
+        sm: 8
+      },
       scheduleActive: {
         type: "state",
         oid: `schedules.${schedule.id}.active`,
         control: "switch",
-        label: translate("Heating schedule active", "Heizplan aktiv"),
-        size: "small",
+        tooltip: translate("Enable or disable the heating schedule", "Heizplan aktivieren oder deaktivieren"),
         style: {
           marginTop: -48,
           marginBottom: 8,
-          "& .MuiSwitch-root": {
-            transform: "scale(0.82)",
-            transformOrigin: "right center"
-          }
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          transform: "scale(0.75)",
+          transformOrigin: "right center"
         },
-        newLine: true,
-        xs: 12
+        newLine: false,
+        xs: 4,
+        sm: 4
       },
       ...schedule.startDate || schedule.endDate ? {
         scheduleActivationDates: {
@@ -818,19 +837,41 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
           oid: `schedules.${schedule.id}.activate`,
           control: "button",
           buttonValue: true,
-          falseText: translate("Apply matching heating mode", "Passenden Heizmodus anwenden"),
+          falseText: translate("Set matching setpoint", "Passenden Sollwert setzen"),
+          falseTextStyle: {
+            display: "flex",
+            width: "150px",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            fontSize: "0.75rem",
+            whiteSpace: "nowrap"
+          },
           icon: "play",
-          variant: "text",
+          variant: "outlined",
           tooltip: translate(
-            "Apply the most recent heating mode for the current time",
-            "Letzten passenden Heizmodus f\xFCr die aktuelle Zeit anwenden"
+            "Set the setpoint of the most recent heating mode for the current time",
+            "Sollwert des letzten passenden Heizmodus f\xFCr die aktuelle Zeit setzen"
           ),
           style: {
-            marginTop: -10,
-            marginBottom: 2,
-            textAlign: "right",
+            marginTop: 8,
+            marginBottom: 8,
             display: "flex",
-            justifyContent: "flex-end"
+            justifyContent: "center",
+            marginLeft: "auto",
+            marginRight: "auto",
+            "& button": {
+              width: "180px",
+              minWidth: "180px",
+              height: "36px",
+              boxSizing: "border-box",
+              padding: "3px 10px",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
+              alignItems: "center",
+              textAlign: "center",
+              justifyContent: "center"
+            }
           },
           newLine: true,
           xs: 12
@@ -840,12 +881,21 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
           oid: `schedules.${schedule.id}.activateActive`,
           control: "button",
           buttonValue: true,
-          falseText: translate("Apply active heating mode", "Aktiven Heizmodus anwenden"),
+          falseText: translate("Set active setpoint", "Aktiven Sollwert setzen"),
+          falseTextStyle: {
+            display: "flex",
+            width: "150px",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            fontSize: "0.75rem",
+            whiteSpace: "nowrap"
+          },
           icon: "play",
-          variant: "text",
+          variant: "outlined",
           tooltip: translate(
-            "Apply the heating mode currently selected by automation",
-            "Den aktuell von der Automatik ausgew\xE4hlten Heizmodus anwenden"
+            "Set the setpoint of the heating mode currently selected by automation",
+            "Sollwert des aktuell von der Automatik ausgew\xE4hlten Heizmodus setzen"
           ),
           dependsOnStates: {
             scheduleActive: `.schedules.${schedule.id}.active`,
@@ -858,11 +908,24 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
           },
           hidden: `!_states.scheduleActive?.val || !(${schedule.heatingModes.map((_mode, index) => `_states.modeActive${index}?.val === true`).join(" || ")})`,
           style: {
-            marginTop: -6,
-            marginBottom: 2,
-            textAlign: "right",
+            marginTop: 4,
+            marginBottom: 8,
             display: "flex",
-            justifyContent: "flex-end"
+            justifyContent: "center",
+            marginLeft: "auto",
+            marginRight: "auto",
+            "& button": {
+              width: "180px",
+              minWidth: "180px",
+              height: "36px",
+              boxSizing: "border-box",
+              padding: "3px 10px",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
+              alignItems: "center",
+              textAlign: "center",
+              justifyContent: "center"
+            }
           },
           newLine: true,
           xs: 12
@@ -939,27 +1002,61 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
       ...Object.fromEntries(
         schedule.heatingModes.flatMap((mode) => [
           [
-            `active_${mode.id}`,
+            `modeRow_${mode.id}`,
             {
-              type: "state",
-              oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
-              control: "switch",
-              label: mode.name,
-              style: {
-                marginTop: 0,
-                marginBottom: -2,
-                "& .MuiFormControlLabel-root": {
-                  width: "100%",
-                  justifyContent: "space-between",
-                  margin: 0
+              type: "panel",
+              items: {
+                [`label_${mode.id}`]: {
+                  type: "staticText",
+                  text: mode.name,
+                  style: {
+                    marginTop: 0,
+                    marginBottom: -2,
+                    display: "flex",
+                    alignItems: "center",
+                    whiteSpace: "nowrap"
+                  },
+                  newLine: true,
+                  xs: 8,
+                  sm: 8
                 },
-                "& .MuiSwitch-root": {
-                  marginLeft: "auto"
+                [`active_${mode.id}`]: {
+                  type: "state",
+                  oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+                  control: "switch",
+                  tooltip: translate(
+                    "Enable or disable this heating mode",
+                    "Diesen Heizmodus aktivieren oder deaktivieren"
+                  ),
+                  style: {
+                    marginTop: 0,
+                    marginBottom: -2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    position: "relative",
+                    left: "38px",
+                    transform: "scale(0.75)",
+                    transformOrigin: "right center"
+                  },
+                  newLine: false,
+                  xs: 4,
+                  sm: 4
                 }
               },
+              innerStyle: {
+                alignContent: "flex-start",
+                justifyContent: "flex-start",
+                rowGap: 0
+              },
+              style: {
+                margin: 0,
+                padding: 0,
+                width: "100%"
+              },
               newLine: true,
-              xs: 9,
-              sm: 9
+              xs: 8,
+              sm: 8
             }
           ],
           [
@@ -969,20 +1066,42 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
               oid: `schedules.${schedule.id}.heatingModes.${mode.id}.activate`,
               control: "button",
               buttonValue: true,
-              falseText: translate("Apply", "Anwenden"),
+              falseText: temperatureButtonText(mode.temperature),
+              falseTextStyle: {
+                display: "flex",
+                width: "55px",
+                minWidth: "55px",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                fontSize: "0.75rem",
+                whiteSpace: "nowrap"
+              },
               icon: "play",
-              variant: "text",
+              variant: "outlined",
               tooltip: translate("Apply this heating mode now", "Diesen Heizmodus jetzt anwenden"),
               style: {
                 marginTop: 0,
                 marginBottom: -2,
-                textAlign: "right",
                 display: "flex",
-                justifyContent: "flex-end"
+                justifyContent: "flex-end",
+                paddingRight: 0,
+                "& button": {
+                  width: "55px",
+                  minWidth: "55px",
+                  boxSizing: "border-box",
+                  padding: "2px 4px",
+                  fontSize: "0.75rem",
+                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                  justifyContent: "center",
+                  transform: "scale(0.8)",
+                  transformOrigin: "right center"
+                }
               },
               newLine: false,
               xs: 4,
-              sm: 3
+              sm: 4
             }
           ],
           [
