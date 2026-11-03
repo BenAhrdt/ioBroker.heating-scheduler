@@ -37,6 +37,7 @@ The adapter uses schema version 3. A schedule is represented by a valid ioBroker
         ├── enabled
         ├── applyMatching
         ├── applyEnabledMatching
+        ├── applyEnabledModeMatching
         ├── setpointMappings
         └── heatingModes
             └── mode_001
@@ -49,9 +50,15 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Editing a schedule preserves its existing `enabled` states; only new schedules/modes or changed activation dates initialize them from the current date.
+- `applyEnabledModeMatching` applies the mode that would be selected from the enabled Heating Modes even while the schedule itself is disabled.
+- The Device Manager card shows only the safe enabled-mode action; the broader apply states remain available for scripts and advanced integrations.
+
 ### 0.1.4 (2026-11-03)
 
-- Renamed runtime states to distinguish persistent enablement from one-time apply commands (`enabled`, `applyMatching`, `applyEnabledMatching`, and `applyNow`); existing runtime states are migrated during synchronization.
+- Renamed runtime states to distinguish persistent enablement from one-time apply commands (`enabled`, `applyMatching`, `applyEnabledMatching`, `applyEnabledModeMatching`, and `applyNow`); existing runtime states are migrated during synchronization.
 
 ### 0.1.3 (2026-11-03)
 

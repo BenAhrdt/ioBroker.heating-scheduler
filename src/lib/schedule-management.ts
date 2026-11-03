@@ -917,15 +917,15 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				: {}),
 			...(schedule.heatingModes.length
 				? {
-						scheduleApplyMatching: {
+						scheduleApplyEnabledModeMatching: {
 							type: 'state',
-							oid: `schedules.${schedule.id}.applyMatching`,
+							oid: `schedules.${schedule.id}.applyEnabledModeMatching`,
 							control: 'button',
 							buttonValue: true,
-							falseText: translate('Set matching setpoint', 'Passenden Sollwert setzen'),
+							falseText: translate('Set enabled setpoint', 'Aktivierten Sollwert setzen'),
 							falseTextStyle: {
 								display: 'flex',
-								width: '150px',
+								width: '230px',
 								alignItems: 'center',
 								justifyContent: 'center',
 								textAlign: 'center',
@@ -935,66 +935,16 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 							icon: 'play',
 							variant: 'outlined',
 							tooltip: translate(
-								'Set the setpoint of the most recent heating mode for the current time',
-								'Sollwert des letzten passenden Heizmodus für die aktuelle Zeit setzen',
+								'Set the setpoint of the mode that would be selected if the heating schedule were enabled',
+								'Sollwert des Modus setzen, der bei aktiviertem Heizplan ausgewählt würde',
 							),
-							style: {
-								marginTop: 8,
-								marginBottom: 8,
-								display: 'flex',
-								justifyContent: 'center',
-								marginLeft: 'auto',
-								marginRight: 'auto',
-								'& button': {
-									width: '180px',
-									minWidth: '180px',
-									height: '36px',
-									boxSizing: 'border-box',
-									padding: '3px 10px',
-									fontSize: '0.75rem',
-									whiteSpace: 'nowrap',
-									alignItems: 'center',
-									textAlign: 'center',
-									justifyContent: 'center',
-								},
-							},
-							newLine: true,
-							xs: 12,
-						},
-						scheduleApplyEnabledMatching: {
-							type: 'state',
-							oid: `schedules.${schedule.id}.applyEnabledMatching`,
-							control: 'button',
-							buttonValue: true,
-							falseText: translate(
-								'Set enabled matching setpoint',
-								'Passenden aktivierten Sollwert setzen',
+							dependsOnStates: Object.fromEntries(
+								schedule.heatingModes.map((mode, index) => [
+									`modeEnabled${index}`,
+									`.schedules.${schedule.id}.heatingModes.${mode.id}.enabled`,
+								]),
 							),
-							falseTextStyle: {
-								display: 'flex',
-								width: '150px',
-								alignItems: 'center',
-								justifyContent: 'center',
-								textAlign: 'center',
-								fontSize: '0.75rem',
-								whiteSpace: 'nowrap',
-							},
-							icon: 'play',
-							variant: 'outlined',
-							tooltip: translate(
-								'Set the setpoint of the heating mode currently selected by automation',
-								'Sollwert des aktuell von der Automatik ausgewählten Heizmodus setzen',
-							),
-							dependsOnStates: {
-								scheduleEnabled: `.schedules.${schedule.id}.enabled`,
-								...Object.fromEntries(
-									schedule.heatingModes.map((mode, index) => [
-										`modeEnabled${index}`,
-										`.schedules.${schedule.id}.heatingModes.${mode.id}.enabled`,
-									]),
-								),
-							},
-							hidden: `!_states.scheduleEnabled?.val || !(${schedule.heatingModes
+							hidden: `!(${schedule.heatingModes
 								.map((_mode, index) => `_states.modeEnabled${index}?.val === true`)
 								.join(' || ')})`,
 							style: {
@@ -1005,8 +955,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 								marginLeft: 'auto',
 								marginRight: 'auto',
 								'& button': {
-									width: '180px',
-									minWidth: '180px',
+									width: '240px',
+									minWidth: '240px',
 									height: '36px',
 									boxSizing: 'border-box',
 									padding: '3px 10px',
