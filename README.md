@@ -49,7 +49,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.4 (2026-11-03)
 
 - Renamed runtime states to distinguish persistent enablement from one-time apply commands (`enabled`, `applyMatching`, `applyEnabledMatching`, and `applyNow`); existing runtime states are migrated during synchronization.
 
