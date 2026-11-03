@@ -34,7 +34,9 @@ The adapter uses schema version 3. A schedule is represented by a valid ioBroker
 
     schedules
     └── schedule_001
-        ├── active
+        ├── enabled
+        ├── applyMatching
+        ├── applyEnabledMatching
         ├── setpointMappings
         └── heatingModes
             └── mode_001
@@ -47,6 +49,10 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Renamed runtime states to distinguish persistent enablement from one-time apply commands (`enabled`, `applyMatching`, `applyEnabledMatching`, and `applyNow`); existing runtime states are migrated during synchronization.
+
 ### 0.1.3 (2026-11-03)
 
 - Updated repository validation, CI workflows and translations after the adapter check.
@@ -54,7 +60,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 - New heating schedules now use the smallest free technical schedule number.
 - Device cards are reassigned through a direct Device Manager update after structural schedule changes.
 - A central schedule button can apply the most recent matching heating mode for the current time and weekday.
-- A second schedule button applies only the heating mode that automation would currently select; it is hidden when the schedule or all modes are inactive and otherwise does nothing if no active mode matches.
+- A second schedule button applies only the heating mode that automation would currently select from the enabled modes; it is hidden when the schedule or all modes are disabled and otherwise does nothing if no enabled mode matches.
 - Heating-mode action buttons display the target temperature in a consistently sized outlined button; central schedule actions use outlined setpoint labels.
 - Schedule and heating-mode cards show their optional automatic activation details in a compact secondary line.
 

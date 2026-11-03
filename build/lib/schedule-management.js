@@ -733,7 +733,7 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
       }
     );
     const enableDisableHandler = this.safeActionHandler(import_dm_utils.ACTIONS.ENABLE_DISABLE, async () => {
-      const stateId = `schedules.${schedule.id}.active`;
+      const stateId = `schedules.${schedule.id}.enabled`;
       const state = await this.adapter.getStateAsync(stateId);
       await this.adapter.setStateAsync(stateId, { val: (state == null ? void 0 : state.val) !== true, ack: false });
       return { refresh: "none" };
@@ -783,9 +783,9 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
       ]
     };
     const modeControls = {
-      scheduleActiveLabel: {
+      scheduleEnabledLabel: {
         type: "staticText",
-        text: translate("Heating schedule active", "Heizplan aktiv"),
+        text: translate("Heating schedule enabled", "Heizplan aktiviert"),
         style: {
           marginTop: -48,
           marginBottom: 8,
@@ -797,9 +797,9 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         xs: 8,
         sm: 8
       },
-      scheduleActive: {
+      scheduleEnabled: {
         type: "state",
-        oid: `schedules.${schedule.id}.active`,
+        oid: `schedules.${schedule.id}.enabled`,
         control: "switch",
         tooltip: translate("Enable or disable the heating schedule", "Heizplan aktivieren oder deaktivieren"),
         style: {
@@ -832,9 +832,9 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         }
       } : {},
       ...schedule.heatingModes.length ? {
-        scheduleActivate: {
+        scheduleApplyMatching: {
           type: "state",
-          oid: `schedules.${schedule.id}.activate`,
+          oid: `schedules.${schedule.id}.applyMatching`,
           control: "button",
           buttonValue: true,
           falseText: translate("Set matching setpoint", "Passenden Sollwert setzen"),
@@ -876,12 +876,15 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
           newLine: true,
           xs: 12
         },
-        scheduleActivateActive: {
+        scheduleApplyEnabledMatching: {
           type: "state",
-          oid: `schedules.${schedule.id}.activateActive`,
+          oid: `schedules.${schedule.id}.applyEnabledMatching`,
           control: "button",
           buttonValue: true,
-          falseText: translate("Set active setpoint", "Aktiven Sollwert setzen"),
+          falseText: translate(
+            "Set enabled matching setpoint",
+            "Passenden aktivierten Sollwert setzen"
+          ),
           falseTextStyle: {
             display: "flex",
             width: "150px",
@@ -898,15 +901,15 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
             "Sollwert des aktuell von der Automatik ausgew\xE4hlten Heizmodus setzen"
           ),
           dependsOnStates: {
-            scheduleActive: `.schedules.${schedule.id}.active`,
+            scheduleEnabled: `.schedules.${schedule.id}.enabled`,
             ...Object.fromEntries(
               schedule.heatingModes.map((mode, index) => [
-                `modeActive${index}`,
-                `.schedules.${schedule.id}.heatingModes.${mode.id}.active`
+                `modeEnabled${index}`,
+                `.schedules.${schedule.id}.heatingModes.${mode.id}.enabled`
               ])
             )
           },
-          hidden: `!_states.scheduleActive?.val || !(${schedule.heatingModes.map((_mode, index) => `_states.modeActive${index}?.val === true`).join(" || ")})`,
+          hidden: `!_states.scheduleEnabled?.val || !(${schedule.heatingModes.map((_mode, index) => `_states.modeEnabled${index}?.val === true`).join(" || ")})`,
           style: {
             marginTop: 4,
             marginBottom: 8,
@@ -1020,9 +1023,9 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
                   xs: 8,
                   sm: 8
                 },
-                [`active_${mode.id}`]: {
+                [`enabled_${mode.id}`]: {
                   type: "state",
-                  oid: `schedules.${schedule.id}.heatingModes.${mode.id}.active`,
+                  oid: `schedules.${schedule.id}.heatingModes.${mode.id}.enabled`,
                   control: "switch",
                   tooltip: translate(
                     "Enable or disable this heating mode",
@@ -1060,10 +1063,10 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
             }
           ],
           [
-            `activate_${mode.id}`,
+            `applyNow_${mode.id}`,
             {
               type: "state",
-              oid: `schedules.${schedule.id}.heatingModes.${mode.id}.activate`,
+              oid: `schedules.${schedule.id}.heatingModes.${mode.id}.applyNow`,
               control: "button",
               buttonValue: true,
               falseText: temperatureButtonText(mode.temperature),
