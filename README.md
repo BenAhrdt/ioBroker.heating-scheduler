@@ -50,8 +50,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.1.6 (2026-11-04)
 
 - Activation dates are labeled "Activate from" / "Aktivieren ab" and "Deactivate from" / "Deaktivieren ab"; they are independent switches and may be entered in either order. Saving errors are shown explicitly, and Device Manager cards are updated directly after a successful save.
 
@@ -81,11 +80,6 @@ Heating modes remain children of their schedule. There is no migration from earl
 - Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.
 - Improved device-list refresh compatibility after saving or renaming a schedule.
 - Added live setpoint and feedback values to schedule cards and a direct start button for every heating mode.
-
-### 0.1.1 (2026-11-02)
-
-- Updated the adapter logo and README documentation.
-- Prepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.
 
 Older changes are kept in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

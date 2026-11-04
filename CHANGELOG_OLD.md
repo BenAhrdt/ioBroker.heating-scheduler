@@ -2,6 +2,11 @@
 
 There are no older published versions yet. The current development changes are
 listed in the [README changelog](README.md#changelog).
+## 0.1.1 (2026-11-02)
+
+- Updated the adapter logo and README documentation.
+- Prepared automatic npm publishing for version tags through GitHub Actions and npm Trusted Publishing.
+
 ## 0.1.0 (2026-11-02)
 
 - (BenAhrdt) Added the versioned Heating Scheduler schedule configuration foundation with stable technical schedule IDs.

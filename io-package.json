@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "heating-scheduler",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "news": {
+      "0.1.6": {
+        "en": "Activation dates are labeled \"Activate from\" / \"Aktivieren ab\" and \"Deactivate from\" / \"Deaktivieren ab\"; they are independent switches and may be entered in either order. Saving errors are shown explicitly, and Device Manager cards are updated directly after a successful save.",
+        "de": "Die Aktivierungsdaten sind mit „Aktivieren ab“ und „Deaktivieren ab“ beschriftet; es sind unabhängige Schalter, die in beliebiger Reihenfolge eingegeben werden können. Speicherfehler werden explizit angezeigt und Device-Manager-Karten werden sofort aktualisiert.",
+        "ru": "Даты активации обозначены как «Активировать с»/«Включить» и «Отключить из»/«Отключить»; это независимые переключатели, которые можно вводить в любом порядке. Ошибки сохранения отображаются в явном виде, а карты диспетчера устройств обновляются сразу после успешного сохранения.",
+        "pt": "As datas de ativação são “Ativar de”/“Ativar de” e “Desativar de”/“Desativar de”; são chaves independentes e podem ser inseridas em qualquer ordem. Os erros de salvamento são exibidos e as placas do Device Manager são atualizadas logo após o salvamento.",
+        "nl": "De activeringsdatums worden aangeduid met „Activeren vanaf”/„Aktivieren ab” en „Deactiveren vanaf”/„\" Deaktivieren ab \"”; het zijn onafhankelijke schakelaars die in willekeurige volgorde kunnen worden ingevoerd.” Opslagfouten worden expliciet weergegeven en de Device Manager-kaarten worden direct na een succesvolle opslag bijgewerkt.",
+        "fr": "Les dates d'activation sont « Activer depuis » /« Activer ab » et « Désactiver depuis » /« Désactiver ab » ; ce sont des options indépendantes qui peuvent être saisies dans l'ordre. Les erreurs de sauvegarde sont affichées et les cartes Device Manager sont mises à jour dès qu'elles sont enregistrées.",
+        "it": "Le date di attivazione sono denominate «Attiva da» /\"Disattiva da» /\"Disattiva ab»; sono switch indipendenti e possono essere inserite in entrambi gli ordini. Gli errori di salvataggio sono espliciti e le schede Device Manager si aggiornano subito dopo il salvataggio.",
+        "es": "Las fechas de activación son «Activar desde»/«Activar desde» y «Desactivar desde»/«Deaktivieren ab»; son conmutadores independientes y se pueden introducir en cualquier orden. Los errores de guardado se muestran de forma explícita y las tarjetas de Device Manager se actualizan tras guardarlas.",
+        "pl": "Daty aktywacji są oznaczone jako „Aktywuj z”/„Aktywuj z” i „Dezaktywuj z”/„Deaktivieren ab”; są niezależnymi przełącznikami i mogą być wprowadzane w dowolnej kolejności. Błędy zapisywania są wyświetlane wyraźnie, a karty Menedżera urządzeń są aktualizowane bezpośrednio po pomyślnym zapisaniu.",
+        "uk": "Дати активації позначені як «Активувати з»/«Активувати з» та «Деактивувати з»/«Вимкнути з»; вони є незалежними перемикачами і можуть бути введені в будь-якому порядку. Помилки збереження відображаються явно, а карти Диспетчера пристроїв оновлюються безпосередньо після успішного збереження.",
+        "zh-cn": "激活日期标有 “激活自”/“Aktivieren ab” 和 “停用自”/“Deaktivieren ab”；它们是独立的开关，可以按任一顺序输入。保存错误会明确显示，成功保存后会直接更新设备管理器卡。"
+      },
       "0.1.5": {
         "en": "Editing a schedule preserves its existing `enabled` states; only new schedules/modes or changed activation dates initialize them from the current date.\n`applyEnabledModeMatching` applies the mode that would be selected from the enabled Heating Modes even while the schedule itself is disabled.\nThe Device Manager card shows only the safe enabled-mode action; the broader apply states remain available for scripts and advanced integrations.",
         "de": "Beim Bearbeiten eines Zeitplans bleibt der Status „aktiviert“ erhalten. Nur neue Zeitpläne/Modi oder geänderte Aktivierungsdaten setzen sie ab.\n`ApplyEnabledModeMatching` wendet den Modus an, der aus den aktivierten Heizmodi gewählt wird, auch wenn der Zeitplan deaktiviert ist.\nDie Geräte-Manager-Karte zeigt nur den sicheren Modus. Weitere Anwendungsstatus gelten weiterhin für Skripte und Integrationen.",
