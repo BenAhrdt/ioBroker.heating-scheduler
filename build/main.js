@@ -48,7 +48,7 @@ class HeatingScheduler extends utils.Adapter {
   feedbackDeviationCounts = /* @__PURE__ */ new Map();
   lastFeedbackValues = /* @__PURE__ */ new Map();
   lastFeedbackUpdateTokens = /* @__PURE__ */ new Map();
-  lastScheduleExecutions = /* @__PURE__ */ new Map();
+  lastAppliedModes = /* @__PURE__ */ new Map();
   processedActivationTransitions = /* @__PURE__ */ new Set();
   configurationQueue = Promise.resolve();
   pendingOperations = /* @__PURE__ */ new Set();
@@ -89,6 +89,7 @@ class HeatingScheduler extends utils.Adapter {
     this.subscribeStates("schedules.*");
     this.startScheduleTimer();
     await this.setState("info.connection", true, true);
+    this.subscribeStates("info.expertMode");
     this.scheduleConfigurationBackup();
   }
   async ensureInfoObjects() {
@@ -107,6 +108,25 @@ class HeatingScheduler extends utils.Adapter {
       },
       native: {}
     });
+    await this.setObjectNotExistsAsync("info.expertMode", {
+      type: "state",
+      common: {
+        name: {
+          en: "Device Manager expert mode",
+          de: "Device-Manager-Expertenmodus"
+        },
+        type: "boolean",
+        role: "switch",
+        read: true,
+        write: true,
+        def: false
+      },
+      native: {}
+    });
+    const expertMode = await this.getStateAsync("info.expertMode");
+    if ((expertMode == null ? void 0 : expertMode.val) !== true && (expertMode == null ? void 0 : expertMode.val) !== false) {
+      await this.setStateAsync("info.expertMode", { val: false, ack: true });
+    }
   }
   getHeatingSchedules() {
     return this.configuration.schedules.map((schedule) => ({ ...schedule }));
@@ -184,6 +204,7 @@ class HeatingScheduler extends utils.Adapter {
     const previous = this.configuration;
     if (next) {
       this.configuration = (0, import_configuration.normalizeConfiguration)(next);
+      this.lastAppliedModes.clear();
     }
     await this.setObjectAsync("schedules", {
       type: "folder",
@@ -659,6 +680,19 @@ class HeatingScheduler extends utils.Adapter {
         },
         mode.temperature
       );
+      await this.ensureConfigurationState(
+        `${modeBase}.priority`,
+        {
+          name: { en: "Priority", de: "Priorit\xE4t" },
+          type: "number",
+          role: "value",
+          min: 0,
+          step: 1,
+          read: true,
+          write: true
+        },
+        mode.priority
+      );
       await this.ensureRuntimeState(
         `${modeBase}.enabled`,
         {
@@ -728,6 +762,13 @@ class HeatingScheduler extends utils.Adapter {
       return;
     }
     const relativeId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
+    if (relativeId === "info.expertMode") {
+      if (typeof state.val !== "boolean") {
+        throw new Error("The Device Manager expert mode state must be boolean");
+      }
+      await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
+      return;
+    }
     const parts = relativeId.split(".");
     if (parts[0] !== "schedules") {
       return;
@@ -740,6 +781,8 @@ class HeatingScheduler extends utils.Adapter {
             throw new Error("The schedule enabled state must be boolean");
           }
           await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
+          this.lastAppliedModes.delete(scheduleId);
+          await this.evaluateSchedules();
           return;
         }
         if (parts[2] === "applyMatching") {
@@ -864,6 +907,8 @@ class HeatingScheduler extends utils.Adapter {
           throw new Error("The heating-mode enabled state must be boolean");
         }
         await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
+        this.lastAppliedModes.delete(scheduleId);
+        await this.evaluateSchedules();
         return;
       }
       if (field === "applyNow" && parts.length === 5) {
@@ -920,6 +965,10 @@ class HeatingScheduler extends utils.Adapter {
             throw new Error("Temperature must be between 0 and 50 \xB0C in 0.1 \xB0C steps");
           }
           target.temperature = value;
+          return;
+        }
+        if (field === "priority") {
+          target.priority = this.getNonNegativeInteger(state.val);
           return;
         }
         if (field === "weekdays" && parts.length === 6) {
@@ -1043,6 +1092,8 @@ class HeatingScheduler extends utils.Adapter {
         return mode.endDate || "";
       case "temperature":
         return mode.temperature;
+      case "priority":
+        return mode.priority;
       default:
         return void 0;
     }
@@ -1065,6 +1116,13 @@ class HeatingScheduler extends utils.Adapter {
     const number = this.getFiniteNumber(value);
     if (!Number.isSafeInteger(number) || number < 1) {
       throw new Error("Value must be a positive integer");
+    }
+    return number;
+  }
+  getNonNegativeInteger(value) {
+    const number = this.getFiniteNumber(value);
+    if (!Number.isSafeInteger(number) || number < 0) {
+      throw new Error("Value must be a non-negative integer");
     }
     return number;
   }
@@ -1104,7 +1162,7 @@ class HeatingScheduler extends utils.Adapter {
     await this.executeHeatingMode(scheduleId, mode.id);
   }
   async executeEnabledModeMatchingHeatingMode(scheduleId, requireScheduleEnabled) {
-    var _a, _b;
+    var _a;
     const schedule = this.configuration.schedules.find((candidate) => candidate.id === scheduleId);
     if (!schedule) {
       throw new Error(`Heating schedule ${scheduleId} does not exist`);
@@ -1113,12 +1171,7 @@ class HeatingScheduler extends utils.Adapter {
       this.log.debug(`Skipped enabled heating mode application for disabled schedule ${scheduleId}`);
       return;
     }
-    const enabledModes = [];
-    for (const mode2 of schedule.heatingModes) {
-      if (((_b = await this.getStateAsync(`schedules.${scheduleId}.heatingModes.${mode2.id}.enabled`)) == null ? void 0 : _b.val) === true) {
-        enabledModes.push(mode2);
-      }
-    }
+    const enabledModes = await this.getEnabledHeatingModes(schedule);
     if (!enabledModes.length) {
       this.log.debug(`Skipped enabled-mode matching for ${scheduleId}: no mode is enabled`);
       return;
@@ -1137,6 +1190,16 @@ class HeatingScheduler extends utils.Adapter {
       return;
     }
     await this.executeHeatingMode(scheduleId, mode.id);
+  }
+  async getEnabledHeatingModes(schedule) {
+    var _a;
+    const enabledModes = [];
+    for (const mode of schedule.heatingModes) {
+      if (((_a = await this.getStateAsync(`schedules.${schedule.id}.heatingModes.${mode.id}.enabled`)) == null ? void 0 : _a.val) === true) {
+        enabledModes.push(mode);
+      }
+    }
+    return enabledModes;
   }
   feedbackKey(scheduleId, mappingId) {
     return `${scheduleId}:${mappingId}`;
@@ -1275,33 +1338,32 @@ class HeatingScheduler extends utils.Adapter {
   async evaluateSchedules() {
     const now = /* @__PURE__ */ new Date();
     const date = this.localDate();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const weekday = (now.getDay() + 6) % 7 + 1;
+    const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
     await this.applyDateActivationTransitions(date);
     for (const schedule of this.configuration.schedules) {
       const scheduleEnabled = await this.getStateAsync(`schedules.${schedule.id}.enabled`);
       if ((scheduleEnabled == null ? void 0 : scheduleEnabled.val) !== true) {
+        this.lastAppliedModes.delete(schedule.id);
         continue;
       }
-      for (const mode of schedule.heatingModes) {
-        const modeEnabled = await this.getStateAsync(
-          `schedules.${schedule.id}.heatingModes.${mode.id}.enabled`
-        );
-        if ((modeEnabled == null ? void 0 : modeEnabled.val) !== true) {
-          continue;
-        }
-        const weekdayMatches = mode.weekdaySelection === 0 ? true : mode.weekdaySelection === 1 ? mode.weekdays.includes(weekday) : !mode.weekdays.includes(weekday);
-        if (!weekdayMatches || mode.startTime !== time) {
-          continue;
-        }
-        const scheduleKey = `${date}T${mode.startTime}`;
-        const executionKey = this.feedbackKey(schedule.id, mode.id);
-        if (this.lastScheduleExecutions.get(executionKey) === scheduleKey) {
-          continue;
-        }
-        await this.executeHeatingMode(schedule.id, mode.id);
-        this.lastScheduleExecutions.set(executionKey, scheduleKey);
+      const enabledModes = await this.getEnabledHeatingModes(schedule);
+      const mode = (0, import_configuration.selectHeatingModeForManualActivation)(
+        { heatingModes: enabledModes },
+        weekday,
+        minutesSinceMidnight,
+        true
+      );
+      if (!mode) {
+        this.lastAppliedModes.delete(schedule.id);
+        continue;
       }
+      const executionKey = `${date}:${mode.id}`;
+      if (this.lastAppliedModes.get(schedule.id) === executionKey) {
+        continue;
+      }
+      await this.executeHeatingMode(schedule.id, mode.id);
+      this.lastAppliedModes.set(schedule.id, executionKey);
     }
   }
   scheduleConfigurationBackup() {

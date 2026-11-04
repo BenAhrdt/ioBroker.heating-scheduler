@@ -87,6 +87,9 @@ function validateConfigurationPatch(patch) {
     if (candidate.endDate !== void 0 && candidate.endDate !== "" && !(0, import_configuration.isValidCalendarDate)(candidate.endDate)) {
       throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD end date`);
     }
+    if (candidate.priority !== void 0 && !(0, import_configuration.isHeatingModePriority)(candidate.priority)) {
+      throw new Error(`Heating mode ${index + 1} needs a non-negative integer priority`);
+    }
     if (typeof candidate.temperature !== "number" || !Number.isFinite(candidate.temperature)) {
       throw new Error(`Heating mode ${index + 1} needs a finite temperature`);
     }

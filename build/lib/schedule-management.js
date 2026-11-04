@@ -111,7 +111,7 @@ function numericStateValidator(field, optional) {
   return `return (() => { const value = typeof data.${field} === 'string' ? data.${field}.trim() : (data.${field} && typeof data.${field} === 'object' ? String(data.${field}.value || data.${field}.id || '').trim() : ''); ${optionalCheck} const ids = typeof globalData !== 'undefined' && Array.isArray(globalData._validNumericStateIds) ? globalData._validNumericStateIds : (Array.isArray(data._validNumericStateIds) ? data._validNumericStateIds : []); return ids.includes(value); })()`;
 }
 function numericStateConfigurationDisabledRule(validNumericStateIds) {
-  return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || modes.some(mode => { const temperature = Number(mode && mode.temperature); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10; }); })()`;
+  return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || modes.some(mode => { const temperature = Number(mode && mode.temperature); const priority = Number(mode && mode.priority); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10 || !Number.isSafeInteger(priority) || priority < 0; }); })()`;
 }
 function mappingDisplayName(mapping, allMappings, numericStateNames) {
   const baseName = numericStateNames[mapping.setpointStateId] || mapping.setpointStateId || "Setpoint mapping";
@@ -552,11 +552,41 @@ function scheduleConfigurationForm() {
                   "Bitte eine Temperatur zwischen 0 und 50 \xB0C in 0,1-\xB0C-Schritten eingeben."
                 ),
                 validatorNoSaveOnError: true,
-                newLine: false,
                 style: {
                   display: "flex",
                   alignItems: "flex-end"
                 },
+                newLine: false,
+                xs: 12,
+                sm: 6,
+                md: 4,
+                lg: 4,
+                xl: 4
+              },
+              {
+                type: "number",
+                attr: "priority",
+                label: translate("Priority", "Priorit\xE4t"),
+                help: translate(
+                  "Higher values win when several enabled heating modes are currently applicable.",
+                  "H\xF6here Werte gewinnen, wenn mehrere aktivierte Heizmodi aktuell anwendbar sind."
+                ),
+                min: 0,
+                step: 1,
+                default: 0,
+                validator: "return (() => { const value = Number(data.priority); return Number.isSafeInteger(value) && value >= 0; })()",
+                validatorErrorText: translate(
+                  "Enter a non-negative integer priority.",
+                  "Bitte eine nicht negative Ganzzahl als Priorit\xE4t eingeben."
+                ),
+                validatorNoSaveOnError: true,
+                dependsOnStates: { expertMode: ".info.expertMode" },
+                hidden: "_states.expertMode?.val !== true",
+                style: {
+                  display: "flex",
+                  alignItems: "flex-end"
+                },
+                newLine: true,
                 xs: 12,
                 sm: 6,
                 md: 4,
@@ -651,10 +681,26 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
     };
   }
   getInstanceInfo() {
+    const toggleExpertModeHandler = this.safeActionHandler("toggleExpertMode", async () => {
+      const state = await this.adapter.getStateAsync("info.expertMode");
+      await this.adapter.setStateAsync("info.expertMode", { val: (state == null ? void 0 : state.val) !== true, ack: false });
+      return { refresh: "none" };
+    });
     return {
       apiVersion: "v3",
       communicationStateId: "info.deviceManager",
       actions: [
+        {
+          id: "toggleExpertMode",
+          icon: "settings",
+          title: translate("Expert mode", "Expertenmodus"),
+          variant: "outlined",
+          description: translate(
+            "Show or hide advanced priorities and manual apply actions",
+            "Erweiterte Priorit\xE4ten und manuelle Anwendeaktionen ein- oder ausblenden"
+          ),
+          handler: toggleExpertModeHandler
+        },
         {
           id: "addSchedule",
           icon: "add",
@@ -677,6 +723,35 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
             this.refreshDeviceCache();
             return this.refreshDeviceInGui(scheduleId);
           })
+        }
+      ],
+      indicators: [
+        {
+          id: "expertMode",
+          value: { stateId: `${this.adapter.namespace}.info.expertMode` },
+          icon: "settings",
+          iconOn: "settings",
+          color: "rgba(255, 255, 255, 0.95)",
+          colorOn: "#ffffff",
+          text: translate("Expert mode: OFF", "Expertenmodus: AUS"),
+          levels: [
+            {
+              value: true,
+              color: "#ffffff",
+              text: translate("Expert mode: ON", "Expertenmodus: EIN")
+            },
+            {
+              value: false,
+              color: "rgba(255, 255, 255, 0.95)",
+              text: translate("Expert mode: OFF", "Expertenmodus: AUS")
+            }
+          ],
+          actionId: "toggleExpertMode",
+          hideIfEmpty: false,
+          tooltip: translate(
+            "Click to show or hide advanced priorities and manual apply actions",
+            "Klicken, um erweiterte Priorit\xE4ten und manuelle Anwendeaktionen ein- oder auszublenden"
+          )
         }
       ]
     };
@@ -861,13 +936,16 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
             "Set the setpoint of the mode that would be selected if the heating schedule were enabled",
             "Sollwert des Modus setzen, der bei aktiviertem Heizplan ausgew\xE4hlt w\xFCrde"
           ),
-          dependsOnStates: Object.fromEntries(
-            schedule.heatingModes.map((mode, index) => [
-              `modeEnabled${index}`,
-              `.schedules.${schedule.id}.heatingModes.${mode.id}.enabled`
-            ])
-          ),
-          hidden: `!(${schedule.heatingModes.map((_mode, index) => `_states.modeEnabled${index}?.val === true`).join(" || ")})`,
+          dependsOnStates: {
+            expertMode: ".info.expertMode",
+            ...Object.fromEntries(
+              schedule.heatingModes.map((mode, index) => [
+                `modeEnabled${index}`,
+                `.schedules.${schedule.id}.heatingModes.${mode.id}.enabled`
+              ])
+            )
+          },
+          hidden: `_states.expertMode?.val !== true || !(${schedule.heatingModes.map((_mode, index) => `_states.modeEnabled${index}?.val === true`).join(" || ")})`,
           style: {
             marginTop: 4,
             marginBottom: 8,
@@ -1040,6 +1118,8 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
               },
               icon: "play",
               variant: "outlined",
+              dependsOnStates: { expertMode: ".info.expertMode" },
+              hidden: "_states.expertMode?.val !== true",
               tooltip: translate("Apply this heating mode now", "Diesen Heizmodus jetzt anwenden"),
               style: {
                 marginTop: 0,
@@ -1077,6 +1157,25 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
                 lineHeight: 1.25,
                 whiteSpace: "pre-line",
                 marginTop: -4,
+                marginBottom: 2,
+                paddingLeft: 4
+              },
+              newLine: true,
+              xs: 12
+            }
+          ],
+          [
+            `priority_${mode.id}`,
+            {
+              type: "staticText",
+              text: translate(`Priority: ${mode.priority}`, `Priorit\xE4t: ${mode.priority}`),
+              dependsOnStates: { expertMode: ".info.expertMode" },
+              hidden: "_states.expertMode?.val !== true",
+              size: "small",
+              style: {
+                color: "text.secondary",
+                fontSize: "0.7rem",
+                marginTop: -2,
                 marginBottom: 2,
                 paddingLeft: 4
               },

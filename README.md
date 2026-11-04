@@ -22,7 +22,9 @@ The adapter is currently in early development. Heating modes belong to a heating
 - Manage multiple heating schedules through the ioBroker Device Manager.
 - Configure setpoint and optional feedback state mappings.
 - Define heating modes with weekdays, start times, start dates and target temperatures.
+- Assign a priority to each heating mode; higher priorities win when enabled modes overlap.
 - Enable or disable a complete heating schedule or individual heating modes.
+- Keep advanced manual apply actions and mode priorities available through the Device Manager expert mode.
 - Choose between radiator and underfloor heating per schedule; the card color and icon reflect the selected system.
 - Use translated schedule and heating-mode names through the object metadata.
 - Keep the authoritative configuration in the versioned schedules structure.
@@ -42,6 +44,8 @@ The adapter uses schema version 3. A schedule is represented by a valid ioBroker
         └── heatingModes
             └── mode_001
 
+Each heating mode has a priority with a default value of `0`. Higher values win when multiple enabled modes are currently applicable. Equal priorities use the most recent matching rule; identical rules use the later configured mode as a deterministic tie-breaker.
+
 Heating modes remain children of their schedule. There is no migration from earlier configuration formats because this adapter has no productive legacy installations.
 
 ## Changelog
@@ -50,6 +54,11 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+- Heating modes now support non-negative integer priorities. Automatic evaluation and the enabled-mode matching actions select the highest-priority applicable enabled mode; the broader matching action also uses priority but intentionally ignores enable switches. Manual per-mode application remains an explicit override.
+- Device Manager priority fields, mode-level Apply buttons, and the schedule-level enabled-mode Apply button are shown only when the adapter's Device Manager expert mode is enabled.
+
 ### 0.1.6 (2026-11-04)
 
 - Activation dates are labeled "Activate from" / "Aktivieren ab" and "Deactivate from" / "Deaktivieren ab"; they are independent switches and may be entered in either order. Saving errors are shown explicitly, and Device Manager cards are updated directly after a successful save.

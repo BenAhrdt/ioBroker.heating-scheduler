@@ -20,6 +20,7 @@ export const DEFAULT_DEVIATION_COUNT_BEFORE_WRITE = 3;
 export const DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES = 5;
 export const DEFAULT_HEATING_MODE_START_TIME = '00:00';
 export const DEFAULT_HEATING_MODE_TEMPERATURE = 20;
+export const DEFAULT_HEATING_MODE_PRIORITY = 0;
 export const DEFAULT_HEATING_MODE_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 /**
@@ -38,6 +39,15 @@ export function isFeedbackMode(value: unknown): value is FeedbackMode {
  */
 export function isWeekdaySelection(value: unknown): value is WeekdaySelection {
 	return value === 0 || value === 1 || value === 2;
+}
+
+/**
+ * Returns true when a heating-mode priority is a non-negative safe integer.
+ *
+ * @param value candidate priority
+ */
+export function isHeatingModePriority(value: unknown): value is number {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -83,6 +93,8 @@ export interface HeatingMode {
 	endDate?: string;
 	/** Target temperature for this initial rule. */
 	temperature: number;
+	/** Higher values win when several currently applicable modes compete. */
+	priority: number;
 }
 
 /** A schedule managed by the Heating Scheduler adapter. */
@@ -120,9 +132,15 @@ function heatingModeStartMinutes(mode: HeatingMode): number {
 	return hours * 60 + minutes;
 }
 
+function heatingModePriority(mode: HeatingMode): number {
+	return mode.priority;
+}
+
 /**
- * Selects the most recent recurring heating-mode rule for manual application.
- * Active states and date boundaries are deliberately ignored.
+ * Selects the currently applicable recurring heating-mode rule for application.
+ * Higher priorities win; equal priorities use the most recent rule and then the
+ * later configured mode as a deterministic tie-breaker. Active states and date
+ * boundaries are deliberately ignored by this pure selection helper.
  *
  * @param schedule schedule whose heating modes should be searched
  * @param weekday current weekday, Monday = 1 through Sunday = 7
@@ -146,10 +164,10 @@ export function selectHeatingModeForManualActivation(
 		return undefined;
 	}
 
-	let selected: { mode: HeatingMode; elapsedMinutes: number } | undefined;
+	let selected: { mode: HeatingMode; elapsedMinutes: number; index: number } | undefined;
 	for (let daysAgo = 0; daysAgo < (includePreviousWeekdays ? 7 : 1); daysAgo += 1) {
 		const occurrenceWeekday = ((weekday - 1 - daysAgo + 7) % 7) + 1;
-		for (const mode of schedule.heatingModes) {
+		for (const [index, mode] of schedule.heatingModes.entries()) {
 			if (!heatingModeMatchesWeekday(mode, occurrenceWeekday)) {
 				continue;
 			}
@@ -158,8 +176,14 @@ export function selectHeatingModeForManualActivation(
 				continue;
 			}
 			const elapsedMinutes = daysAgo * 24 * 60 + minutesSinceMidnight - startMinutes;
-			if (!selected || elapsedMinutes < selected.elapsedMinutes) {
-				selected = { mode, elapsedMinutes };
+			if (
+				!selected ||
+				heatingModePriority(mode) > heatingModePriority(selected.mode) ||
+				(heatingModePriority(mode) === heatingModePriority(selected.mode) &&
+					(elapsedMinutes < selected.elapsedMinutes ||
+						(elapsedMinutes === selected.elapsedMinutes && index > selected.index)))
+			) {
+				selected = { mode, elapsedMinutes, index };
 			}
 		}
 	}
@@ -191,6 +215,11 @@ function asTrimmedString(value: unknown): string {
 
 function positiveInteger(value: unknown, fallback: number): number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function nonNegativeInteger(value: unknown, fallback: number): number {
+	const parsed = finiteNumber(value, fallback);
+	return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function finiteNumber(value: unknown, fallback: number): number {
@@ -430,6 +459,7 @@ function normalizeHeatingModes(
 			...(normalizeDate(candidate.startDate) ? { startDate: normalizeDate(candidate.startDate) } : {}),
 			...(normalizeDate(candidate.endDate) ? { endDate: normalizeDate(candidate.endDate) } : {}),
 			temperature: finiteNumber(candidate.temperature, DEFAULT_HEATING_MODE_TEMPERATURE),
+			priority: nonNegativeInteger(candidate.priority, DEFAULT_HEATING_MODE_PRIORITY),
 		});
 	}
 	return { items, nextNumber };
@@ -572,6 +602,9 @@ export function validateConfiguration(value: unknown): string[] {
 						errors.push(`schedules[${index}].heatingModes[${modeIndex}].weekdaySelection is invalid.`);
 					}
 					if (isRecord(mode)) {
+						if (mode.priority !== undefined && !isHeatingModePriority(mode.priority)) {
+							errors.push(`schedules[${index}].heatingModes[${modeIndex}].priority is invalid.`);
+						}
 						if (mode.startDate !== undefined && !isValidCalendarDate(mode.startDate)) {
 							errors.push(`schedules[${index}].heatingModes[${modeIndex}].startDate is invalid.`);
 						}

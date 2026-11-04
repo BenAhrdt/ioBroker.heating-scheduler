@@ -112,6 +112,7 @@ describe('Heating Modes schedule operations', () => {
 					startDate: '2026-11-05',
 					endDate: '2026-11-20',
 					temperature: 21,
+					priority: 10,
 				},
 			],
 		});
@@ -123,6 +124,7 @@ describe('Heating Modes schedule operations', () => {
 		expect(changed.schedules[0].heatingModes[0]).to.include({
 			startDate: '2026-11-05',
 			endDate: '2026-11-20',
+			priority: 10,
 		});
 		const reversed = updateScheduleConfiguration(initial, 'schedule_001', {
 			name: 'Living room',

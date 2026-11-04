@@ -6,6 +6,7 @@ import {
 	isFeedbackMode,
 	isValidCalendarDate,
 	isHeatingType,
+	isHeatingModePriority,
 	isWeekdaySelection,
 	normalizeConfiguration,
 	type HeatingType,
@@ -107,6 +108,9 @@ function validateConfigurationPatch(patch: HeatingScheduleConfigurationPatch): v
 		}
 		if (candidate.endDate !== undefined && candidate.endDate !== '' && !isValidCalendarDate(candidate.endDate)) {
 			throw new Error(`Heating mode ${index + 1} needs a valid YYYY-MM-DD end date`);
+		}
+		if (candidate.priority !== undefined && !isHeatingModePriority(candidate.priority)) {
+			throw new Error(`Heating mode ${index + 1} needs a non-negative integer priority`);
 		}
 		if (typeof candidate.temperature !== 'number' || !Number.isFinite(candidate.temperature)) {
 			throw new Error(`Heating mode ${index + 1} needs a finite temperature`);

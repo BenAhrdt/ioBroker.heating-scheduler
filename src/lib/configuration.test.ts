@@ -100,6 +100,26 @@ describe('Heating Scheduler configuration', () => {
 		});
 		expect(numeric.schedules[0].setpointMappings[0].feedbackMode).to.equal(2);
 		expect(numeric.schedules[0].heatingModes[0].weekdaySelection).to.equal(0);
+		expect(numeric.schedules[0].heatingModes[0].priority).to.equal(0);
+	});
+
+	it('uses heating-mode priority before recency when selecting a mode', () => {
+		const schedule = normalizeConfiguration({
+			schemaVersion: 3,
+			schedules: [
+				{
+					id: 'schedule_001',
+					name: 'Living room',
+					heatingModes: [
+						{ name: 'Normal', startTime: '06:00', temperature: 21, priority: 0 },
+						{ name: 'Vacation', startTime: '00:00', temperature: 16, priority: 100 },
+					],
+				},
+			],
+			nextScheduleNumber: 2,
+		}).schedules[0];
+
+		expect(selectHeatingModeForManualActivation(schedule, 1, 12 * 60)?.name).to.equal('Vacation');
 	});
 
 	it('normalizes optional activation dates for schedules and heating modes', () => {

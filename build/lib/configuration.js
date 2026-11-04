@@ -22,6 +22,7 @@ __export(configuration_exports, {
   DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES: () => DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES,
   DEFAULT_DEVIATION_COUNT_BEFORE_WRITE: () => DEFAULT_DEVIATION_COUNT_BEFORE_WRITE,
   DEFAULT_FEEDBACK_MODE: () => DEFAULT_FEEDBACK_MODE,
+  DEFAULT_HEATING_MODE_PRIORITY: () => DEFAULT_HEATING_MODE_PRIORITY,
   DEFAULT_HEATING_MODE_START_TIME: () => DEFAULT_HEATING_MODE_START_TIME,
   DEFAULT_HEATING_MODE_TEMPERATURE: () => DEFAULT_HEATING_MODE_TEMPERATURE,
   DEFAULT_HEATING_MODE_WEEKDAYS: () => DEFAULT_HEATING_MODE_WEEKDAYS,
@@ -32,6 +33,7 @@ __export(configuration_exports, {
   isDateInActivationRange: () => isDateInActivationRange,
   isEmptyConfiguration: () => isEmptyConfiguration,
   isFeedbackMode: () => isFeedbackMode,
+  isHeatingModePriority: () => isHeatingModePriority,
   isHeatingType: () => isHeatingType,
   isValidCalendarDate: () => isValidCalendarDate,
   isValidDateRange: () => isValidDateRange,
@@ -50,12 +52,16 @@ const DEFAULT_DEVIATION_COUNT_BEFORE_WRITE = 3;
 const DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES = 5;
 const DEFAULT_HEATING_MODE_START_TIME = "00:00";
 const DEFAULT_HEATING_MODE_TEMPERATURE = 20;
+const DEFAULT_HEATING_MODE_PRIORITY = 0;
 const DEFAULT_HEATING_MODE_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
 function isFeedbackMode(value) {
   return value === 0 || value === 1 || value === 2;
 }
 function isWeekdaySelection(value) {
   return value === 0 || value === 1 || value === 2;
+}
+function isHeatingModePriority(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 function isHeatingType(value) {
   return value === "radiator" || value === "underfloorHeating";
@@ -67,6 +73,9 @@ function heatingModeStartMinutes(mode) {
   const [hours, minutes] = mode.startTime.split(":").map(Number);
   return hours * 60 + minutes;
 }
+function heatingModePriority(mode) {
+  return mode.priority;
+}
 function selectHeatingModeForManualActivation(schedule, weekday, minutesSinceMidnight, includePreviousWeekdays = true) {
   if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7 || !Number.isInteger(minutesSinceMidnight) || minutesSinceMidnight < 0 || minutesSinceMidnight >= 24 * 60) {
     return void 0;
@@ -74,7 +83,7 @@ function selectHeatingModeForManualActivation(schedule, weekday, minutesSinceMid
   let selected;
   for (let daysAgo = 0; daysAgo < (includePreviousWeekdays ? 7 : 1); daysAgo += 1) {
     const occurrenceWeekday = (weekday - 1 - daysAgo + 7) % 7 + 1;
-    for (const mode of schedule.heatingModes) {
+    for (const [index, mode] of schedule.heatingModes.entries()) {
       if (!heatingModeMatchesWeekday(mode, occurrenceWeekday)) {
         continue;
       }
@@ -83,8 +92,8 @@ function selectHeatingModeForManualActivation(schedule, weekday, minutesSinceMid
         continue;
       }
       const elapsedMinutes = daysAgo * 24 * 60 + minutesSinceMidnight - startMinutes;
-      if (!selected || elapsedMinutes < selected.elapsedMinutes) {
-        selected = { mode, elapsedMinutes };
+      if (!selected || heatingModePriority(mode) > heatingModePriority(selected.mode) || heatingModePriority(mode) === heatingModePriority(selected.mode) && (elapsedMinutes < selected.elapsedMinutes || elapsedMinutes === selected.elapsedMinutes && index > selected.index)) {
+        selected = { mode, elapsedMinutes, index };
       }
     }
   }
@@ -102,6 +111,10 @@ function asTrimmedString(value) {
 }
 function positiveInteger(value, fallback) {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+function nonNegativeInteger(value, fallback) {
+  const parsed = finiteNumber(value, fallback);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 function finiteNumber(value, fallback) {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -267,7 +280,8 @@ function normalizeHeatingModes(value, configuredNextNumber) {
       startTime: TIME_PATTERN.test(startTime) ? startTime : DEFAULT_HEATING_MODE_START_TIME,
       ...normalizeDate(candidate.startDate) ? { startDate: normalizeDate(candidate.startDate) } : {},
       ...normalizeDate(candidate.endDate) ? { endDate: normalizeDate(candidate.endDate) } : {},
-      temperature: finiteNumber(candidate.temperature, DEFAULT_HEATING_MODE_TEMPERATURE)
+      temperature: finiteNumber(candidate.temperature, DEFAULT_HEATING_MODE_TEMPERATURE),
+      priority: nonNegativeInteger(candidate.priority, DEFAULT_HEATING_MODE_PRIORITY)
     });
   }
   return { items, nextNumber };
@@ -391,6 +405,9 @@ function validateConfiguration(value) {
             errors.push(`schedules[${index}].heatingModes[${modeIndex}].weekdaySelection is invalid.`);
           }
           if (isRecord(mode)) {
+            if (mode.priority !== void 0 && !isHeatingModePriority(mode.priority)) {
+              errors.push(`schedules[${index}].heatingModes[${modeIndex}].priority is invalid.`);
+            }
             if (mode.startDate !== void 0 && !isValidCalendarDate(mode.startDate)) {
               errors.push(`schedules[${index}].heatingModes[${modeIndex}].startDate is invalid.`);
             }
@@ -462,6 +479,7 @@ function createChildId(prefix, nextNumber, usedIds) {
   DEFAULT_CYCLIC_FEEDBACK_INTERVAL_MINUTES,
   DEFAULT_DEVIATION_COUNT_BEFORE_WRITE,
   DEFAULT_FEEDBACK_MODE,
+  DEFAULT_HEATING_MODE_PRIORITY,
   DEFAULT_HEATING_MODE_START_TIME,
   DEFAULT_HEATING_MODE_TEMPERATURE,
   DEFAULT_HEATING_MODE_WEEKDAYS,
@@ -472,6 +490,7 @@ function createChildId(prefix, nextNumber, usedIds) {
   isDateInActivationRange,
   isEmptyConfiguration,
   isFeedbackMode,
+  isHeatingModePriority,
   isHeatingType,
   isValidCalendarDate,
   isValidDateRange,
