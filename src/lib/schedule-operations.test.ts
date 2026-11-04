@@ -124,14 +124,16 @@ describe('Heating Modes schedule operations', () => {
 			startDate: '2026-11-05',
 			endDate: '2026-11-20',
 		});
-		expect(() =>
-			updateScheduleConfiguration(initial, 'schedule_001', {
-				name: 'Living room',
-				startDate: '2026-12-01',
-				endDate: '2026-11-03',
-				setpointMappings: [],
-				heatingModes: [],
-			}),
-		).to.throw('start date must be before');
+		const reversed = updateScheduleConfiguration(initial, 'schedule_001', {
+			name: 'Living room',
+			startDate: '2026-12-01',
+			endDate: '2026-11-03',
+			setpointMappings: [],
+			heatingModes: [],
+		});
+		expect(reversed.schedules[0]).to.include({
+			startDate: '2026-12-01',
+			endDate: '2026-11-03',
+		});
 	});
 });

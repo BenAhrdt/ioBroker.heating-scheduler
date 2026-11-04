@@ -158,10 +158,20 @@ function isValidCalendarDate(value) {
   return normalizeDate(value) !== void 0;
 }
 function isValidDateRange(startDate, endDate) {
-  return !startDate || !endDate || startDate <= endDate;
+  return (!startDate || isValidCalendarDate(startDate)) && (!endDate || isValidCalendarDate(endDate));
 }
-function isDateInActivationRange(date, startDate, endDate) {
-  return (!startDate || date >= startDate) && (!endDate || date < endDate);
+function isDateInActivationRange(date, startDate, endDate, defaultEnabled = true) {
+  let enabled = startDate ? false : endDate ? true : defaultEnabled;
+  const startReached = !!startDate && startDate <= date;
+  const endReached = !!endDate && endDate <= date;
+  if (startReached && endReached) {
+    enabled = startDate > endDate;
+  } else if (startReached) {
+    enabled = true;
+  } else if (endReached) {
+    enabled = false;
+  }
+  return enabled;
 }
 function normalizeWeekdays(value) {
   if (!Array.isArray(value)) {
@@ -364,9 +374,6 @@ function validateConfiguration(value) {
       if (schedule.endDate !== void 0 && !isValidCalendarDate(schedule.endDate)) {
         errors.push(`schedules[${index}].endDate is invalid.`);
       }
-      if (typeof schedule.startDate === "string" && typeof schedule.endDate === "string" && !isValidDateRange(schedule.startDate, schedule.endDate)) {
-        errors.push(`schedules[${index}] date range is invalid.`);
-      }
       if (!Array.isArray(schedule.setpointMappings)) {
         errors.push(`schedules[${index}].setpointMappings must be an array.`);
       } else {
@@ -389,9 +396,6 @@ function validateConfiguration(value) {
             }
             if (mode.endDate !== void 0 && !isValidCalendarDate(mode.endDate)) {
               errors.push(`schedules[${index}].heatingModes[${modeIndex}].endDate is invalid.`);
-            }
-            if (typeof mode.startDate === "string" && typeof mode.endDate === "string" && !isValidDateRange(mode.startDate, mode.endDate)) {
-              errors.push(`schedules[${index}].heatingModes[${modeIndex}] date range is invalid.`);
             }
           }
         }

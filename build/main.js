@@ -302,7 +302,7 @@ class HeatingScheduler extends utils.Adapter {
       const previousSchedule = previous.schedules.find((candidate) => candidate.id === schedule.id);
       const scheduleDatesChanged = !previousSchedule || previousSchedule.startDate !== schedule.startDate || previousSchedule.endDate !== schedule.endDate;
       if (scheduleDatesChanged) {
-        const scheduleEnabled = schedule.startDate || schedule.endDate ? (0, import_configuration.isDateInActivationRange)(date, schedule.startDate, schedule.endDate) : true;
+        const scheduleEnabled = schedule.startDate || schedule.endDate ? (0, import_configuration.isDateInActivationRange)(date, schedule.startDate, schedule.endDate, true) : true;
         await this.setStateChangedAsync(`schedules.${schedule.id}.enabled`, {
           val: scheduleEnabled,
           ack: true
@@ -312,7 +312,7 @@ class HeatingScheduler extends utils.Adapter {
         const previousMode = previousSchedule == null ? void 0 : previousSchedule.heatingModes.find((candidate) => candidate.id === mode.id);
         const modeDatesChanged = !previousMode || previousMode.startDate !== mode.startDate || previousMode.endDate !== mode.endDate;
         if (modeDatesChanged) {
-          const modeEnabled = mode.startDate || mode.endDate ? (0, import_configuration.isDateInActivationRange)(date, mode.startDate, mode.endDate) : false;
+          const modeEnabled = mode.startDate || mode.endDate ? (0, import_configuration.isDateInActivationRange)(date, mode.startDate, mode.endDate, false) : false;
           await this.setStateChangedAsync(`schedules.${schedule.id}.heatingModes.${mode.id}.enabled`, {
             val: modeEnabled,
             ack: true
@@ -390,7 +390,7 @@ class HeatingScheduler extends utils.Adapter {
           read: true,
           write: true
         },
-        schedule.startDate || schedule.endDate ? (0, import_configuration.isDateInActivationRange)(date, schedule.startDate, schedule.endDate) : true,
+        schedule.startDate || schedule.endDate ? (0, import_configuration.isDateInActivationRange)(date, schedule.startDate, schedule.endDate, true) : true,
         `schedules.${schedule.id}.active`
       );
       await this.ensureRuntimeState(
@@ -433,7 +433,7 @@ class HeatingScheduler extends utils.Adapter {
       await this.ensureConfigurationState(
         `schedules.${schedule.id}.startDate`,
         {
-          name: { en: "Start date (optional)", de: "Startdatum (optional)" },
+          name: { en: "Activate from (optional)", de: "Aktivieren ab (optional)" },
           type: "string",
           role: "date.start",
           read: true,
@@ -444,7 +444,7 @@ class HeatingScheduler extends utils.Adapter {
       await this.ensureConfigurationState(
         `schedules.${schedule.id}.endDate`,
         {
-          name: { en: "End date (optional)", de: "Enddatum (optional)" },
+          name: { en: "Deactivate from (optional)", de: "Deaktivieren ab (optional)" },
           type: "string",
           role: "date.end",
           read: true,
@@ -617,7 +617,7 @@ class HeatingScheduler extends utils.Adapter {
       await this.ensureConfigurationState(
         `${modeBase}.startDate`,
         {
-          name: { en: "Start date (optional)", de: "Startdatum (optional)" },
+          name: { en: "Activate from (optional)", de: "Aktivieren ab (optional)" },
           type: "string",
           role: "date.start",
           read: true,
@@ -628,7 +628,7 @@ class HeatingScheduler extends utils.Adapter {
       await this.ensureConfigurationState(
         `${modeBase}.endDate`,
         {
-          name: { en: "End date (optional)", de: "Enddatum (optional)" },
+          name: { en: "Deactivate from (optional)", de: "Deaktivieren ab (optional)" },
           type: "string",
           role: "date.end",
           read: true,
@@ -668,7 +668,7 @@ class HeatingScheduler extends utils.Adapter {
           read: true,
           write: true
         },
-        mode.startDate || mode.endDate ? (0, import_configuration.isDateInActivationRange)(this.localDate(), mode.startDate, mode.endDate) : false,
+        mode.startDate || mode.endDate ? (0, import_configuration.isDateInActivationRange)(this.localDate(), mode.startDate, mode.endDate, false) : false,
         `${modeBase}.active`
       );
       await this.ensureRuntimeState(
@@ -777,11 +777,6 @@ class HeatingScheduler extends utils.Adapter {
           const schedule = this.configuration.schedules.find((candidate) => candidate.id === scheduleId);
           if (!schedule) {
             throw new Error(`Schedule ${scheduleId} does not exist`);
-          }
-          const startDate = parts[2] === "startDate" ? date || void 0 : schedule.startDate;
-          const endDate = parts[2] === "endDate" ? date || void 0 : schedule.endDate;
-          if (!(0, import_configuration.isValidDateRange)(startDate, endDate)) {
-            throw new Error("The schedule start date must be before or equal to its end date");
           }
           await this.updateConfigurationFromState(scheduleId, (current) => {
             if (date) {
@@ -901,10 +896,6 @@ class HeatingScheduler extends utils.Adapter {
           if (typeof state.val !== "string" || state.val !== "" && !(0, import_configuration.isValidCalendarDate)(state.val)) {
             throw new Error("Start date must use YYYY-MM-DD");
           }
-          const nextStartDate = state.val || void 0;
-          if (!(0, import_configuration.isValidDateRange)(nextStartDate, target.endDate)) {
-            throw new Error("The heating-mode start date must be before or equal to its end date");
-          }
           if (state.val === "") {
             delete target.startDate;
           } else {
@@ -915,10 +906,6 @@ class HeatingScheduler extends utils.Adapter {
         if (field === "endDate") {
           if (typeof state.val !== "string" || state.val !== "" && !(0, import_configuration.isValidCalendarDate)(state.val)) {
             throw new Error("End date must use YYYY-MM-DD");
-          }
-          const nextEndDate = state.val || void 0;
-          if (!(0, import_configuration.isValidDateRange)(target.startDate, nextEndDate)) {
-            throw new Error("The heating-mode start date must be before or equal to its end date");
           }
           if (state.val === "") {
             delete target.endDate;

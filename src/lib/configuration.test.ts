@@ -132,9 +132,11 @@ describe('Heating Scheduler configuration', () => {
 			endDate: '2026-11-20',
 		});
 		expect(isValidDateRange('2026-11-03', '2026-12-01')).to.equal(true);
-		expect(isValidDateRange('2026-12-01', '2026-11-03')).to.equal(false);
+		expect(isValidDateRange('2026-12-01', '2026-11-03')).to.equal(true);
 		expect(isDateInActivationRange('2026-11-05', '2026-11-03', '2026-12-01')).to.equal(true);
 		expect(isDateInActivationRange('2026-12-01', '2026-11-03', '2026-12-01')).to.equal(false);
+		expect(isDateInActivationRange('2026-11-15', '2026-12-01', '2026-11-03', false)).to.equal(false);
+		expect(isDateInActivationRange('2026-12-02', '2026-12-01', '2026-11-03', false)).to.equal(true);
 	});
 
 	it('drops invalid and duplicate entries while keeping a usable configuration', () => {

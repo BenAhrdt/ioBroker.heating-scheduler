@@ -12,7 +12,6 @@ import {
 	isEmptyConfiguration,
 	isWeekdaySelection,
 	isValidCalendarDate,
-	isValidDateRange,
 	normalizeConfiguration,
 	selectHeatingModeForManualActivation,
 	type FeedbackMode,
@@ -348,7 +347,7 @@ class HeatingScheduler extends utils.Adapter {
 			if (scheduleDatesChanged) {
 				const scheduleEnabled =
 					schedule.startDate || schedule.endDate
-						? isDateInActivationRange(date, schedule.startDate, schedule.endDate)
+						? isDateInActivationRange(date, schedule.startDate, schedule.endDate, true)
 						: true;
 				await this.setStateChangedAsync(`schedules.${schedule.id}.enabled`, {
 					val: scheduleEnabled,
@@ -362,7 +361,7 @@ class HeatingScheduler extends utils.Adapter {
 				if (modeDatesChanged) {
 					const modeEnabled =
 						mode.startDate || mode.endDate
-							? isDateInActivationRange(date, mode.startDate, mode.endDate)
+							? isDateInActivationRange(date, mode.startDate, mode.endDate, false)
 							: false;
 					await this.setStateChangedAsync(`schedules.${schedule.id}.heatingModes.${mode.id}.enabled`, {
 						val: modeEnabled,
@@ -453,7 +452,7 @@ class HeatingScheduler extends utils.Adapter {
 					write: true,
 				},
 				schedule.startDate || schedule.endDate
-					? isDateInActivationRange(date, schedule.startDate, schedule.endDate)
+					? isDateInActivationRange(date, schedule.startDate, schedule.endDate, true)
 					: true,
 				`schedules.${schedule.id}.active`,
 			);
@@ -497,7 +496,7 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`schedules.${schedule.id}.startDate`,
 				{
-					name: { en: 'Start date (optional)', de: 'Startdatum (optional)' },
+					name: { en: 'Activate from (optional)', de: 'Aktivieren ab (optional)' },
 					type: 'string',
 					role: 'date.start',
 					read: true,
@@ -508,7 +507,7 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`schedules.${schedule.id}.endDate`,
 				{
-					name: { en: 'End date (optional)', de: 'Enddatum (optional)' },
+					name: { en: 'Deactivate from (optional)', de: 'Deaktivieren ab (optional)' },
 					type: 'string',
 					role: 'date.end',
 					read: true,
@@ -689,7 +688,7 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`${modeBase}.startDate`,
 				{
-					name: { en: 'Start date (optional)', de: 'Startdatum (optional)' },
+					name: { en: 'Activate from (optional)', de: 'Aktivieren ab (optional)' },
 					type: 'string',
 					role: 'date.start',
 					read: true,
@@ -700,7 +699,7 @@ class HeatingScheduler extends utils.Adapter {
 			await this.ensureConfigurationState(
 				`${modeBase}.endDate`,
 				{
-					name: { en: 'End date (optional)', de: 'Enddatum (optional)' },
+					name: { en: 'Deactivate from (optional)', de: 'Deaktivieren ab (optional)' },
 					type: 'string',
 					role: 'date.end',
 					read: true,
@@ -741,7 +740,7 @@ class HeatingScheduler extends utils.Adapter {
 					write: true,
 				},
 				mode.startDate || mode.endDate
-					? isDateInActivationRange(this.localDate(), mode.startDate, mode.endDate)
+					? isDateInActivationRange(this.localDate(), mode.startDate, mode.endDate, false)
 					: false,
 				`${modeBase}.active`,
 			);
@@ -861,11 +860,6 @@ class HeatingScheduler extends utils.Adapter {
 					const schedule = this.configuration.schedules.find(candidate => candidate.id === scheduleId);
 					if (!schedule) {
 						throw new Error(`Schedule ${scheduleId} does not exist`);
-					}
-					const startDate = parts[2] === 'startDate' ? date || undefined : schedule.startDate;
-					const endDate = parts[2] === 'endDate' ? date || undefined : schedule.endDate;
-					if (!isValidDateRange(startDate, endDate)) {
-						throw new Error('The schedule start date must be before or equal to its end date');
 					}
 					await this.updateConfigurationFromState(scheduleId, current => {
 						if (date) {
@@ -990,10 +984,6 @@ class HeatingScheduler extends utils.Adapter {
 					if (typeof state.val !== 'string' || (state.val !== '' && !isValidCalendarDate(state.val))) {
 						throw new Error('Start date must use YYYY-MM-DD');
 					}
-					const nextStartDate = state.val || undefined;
-					if (!isValidDateRange(nextStartDate, target.endDate)) {
-						throw new Error('The heating-mode start date must be before or equal to its end date');
-					}
 					if (state.val === '') {
 						delete target.startDate;
 					} else {
@@ -1004,10 +994,6 @@ class HeatingScheduler extends utils.Adapter {
 				if (field === 'endDate') {
 					if (typeof state.val !== 'string' || (state.val !== '' && !isValidCalendarDate(state.val))) {
 						throw new Error('End date must use YYYY-MM-DD');
-					}
-					const nextEndDate = state.val || undefined;
-					if (!isValidDateRange(target.startDate, nextEndDate)) {
-						throw new Error('The heating-mode start date must be before or equal to its end date');
 					}
 					if (state.val === '') {
 						delete target.endDate;

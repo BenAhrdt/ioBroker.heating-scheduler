@@ -50,6 +50,11 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+
+### **WORK IN PROGRESS**
+
+- Activation dates are labeled "Activate from" / "Aktivieren ab" and "Deactivate from" / "Deaktivieren ab"; they are independent switches and may be entered in either order. Saving errors are shown explicitly, and Device Manager cards are updated directly after a successful save.
+
 ### 0.1.5 (2026-11-03)
 
 - Editing a schedule preserves its existing `enabled` states; only new schedules/modes or changed activation dates initialize them from the current date.

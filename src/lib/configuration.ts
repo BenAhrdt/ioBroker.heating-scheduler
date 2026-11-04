@@ -260,24 +260,48 @@ export function isValidCalendarDate(value: unknown): value is string {
 }
 
 /**
- * Returns true when the optional date range is ordered chronologically.
+ * Returns true when the optional activation dates can be used together.
+ *
+ * Start and end dates are independent switching points. The start date
+ * activates and the end date deactivates, so their chronological order is
+ * intentionally not restricted.
  *
  * @param startDate optional activation start date
  * @param endDate optional activation end date
  */
 export function isValidDateRange(startDate?: string, endDate?: string): boolean {
-	return !startDate || !endDate || startDate <= endDate;
+	return (!startDate || isValidCalendarDate(startDate)) && (!endDate || isValidCalendarDate(endDate));
 }
 
 /**
- * Returns whether a date is inside the optional activation range.
+ * Returns the activation state after applying the configured date switches.
+ *
+ * If both dates are in the past, the later switch wins. This also makes a
+ * start date after the end date useful: the end date can switch a mode off
+ * first and the later start date can switch it on again.
  *
  * @param date date to test
  * @param startDate optional activation start date
  * @param endDate optional activation end date
+ * @param defaultEnabled state before any configured switch
  */
-export function isDateInActivationRange(date: string, startDate?: string, endDate?: string): boolean {
-	return (!startDate || date >= startDate) && (!endDate || date < endDate);
+export function isDateInActivationRange(
+	date: string,
+	startDate?: string,
+	endDate?: string,
+	defaultEnabled = true,
+): boolean {
+	let enabled = startDate ? false : endDate ? true : defaultEnabled;
+	const startReached = !!startDate && startDate <= date;
+	const endReached = !!endDate && endDate <= date;
+	if (startReached && endReached) {
+		enabled = startDate > endDate;
+	} else if (startReached) {
+		enabled = true;
+	} else if (endReached) {
+		enabled = false;
+	}
+	return enabled;
 }
 
 function normalizeWeekdays(value: unknown): number[] {
@@ -531,13 +555,6 @@ export function validateConfiguration(value: unknown): string[] {
 			if (schedule.endDate !== undefined && !isValidCalendarDate(schedule.endDate)) {
 				errors.push(`schedules[${index}].endDate is invalid.`);
 			}
-			if (
-				typeof schedule.startDate === 'string' &&
-				typeof schedule.endDate === 'string' &&
-				!isValidDateRange(schedule.startDate, schedule.endDate)
-			) {
-				errors.push(`schedules[${index}] date range is invalid.`);
-			}
 			if (!Array.isArray(schedule.setpointMappings)) {
 				errors.push(`schedules[${index}].setpointMappings must be an array.`);
 			} else {
@@ -560,13 +577,6 @@ export function validateConfiguration(value: unknown): string[] {
 						}
 						if (mode.endDate !== undefined && !isValidCalendarDate(mode.endDate)) {
 							errors.push(`schedules[${index}].heatingModes[${modeIndex}].endDate is invalid.`);
-						}
-						if (
-							typeof mode.startDate === 'string' &&
-							typeof mode.endDate === 'string' &&
-							!isValidDateRange(mode.startDate, mode.endDate)
-						) {
-							errors.push(`schedules[${index}].heatingModes[${modeIndex}] date range is invalid.`);
 						}
 					}
 				}

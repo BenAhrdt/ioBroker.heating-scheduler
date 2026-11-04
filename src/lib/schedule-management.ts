@@ -142,7 +142,7 @@ function numericStateValidator(field: string, optional: boolean): string {
 }
 
 function numericStateConfigurationDisabledRule(validNumericStateIds: readonly string[]): string {
-	return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const range = (start, end) => !start || !end || start <= end; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || !range(scheduleStart, scheduleEnd) || modes.some(mode => { const temperature = Number(mode && mode.temperature); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !range(start, end) || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10; }); })()`;
+	return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || modes.some(mode => { const temperature = Number(mode && mode.temperature); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10; }); })()`;
 }
 
 function mappingDisplayName(
@@ -291,7 +291,7 @@ function scheduleConfigurationForm(): any {
 		type: 'tabs',
 		tabsStyle: { minWidth: 850 },
 		items: {
-			heatingSystem: {
+			a_heatingSystem: {
 				type: 'panel',
 				label: translate('Heating system', 'Heizsystem'),
 				items: {
@@ -320,18 +320,18 @@ function scheduleConfigurationForm(): any {
 					useStartDate: datePickerActivationControl(
 						'startDate',
 						'useStartDate',
-						'Enable start date',
-						'Startdatum aktivieren',
+						'Activate from',
+						'Aktivieren ab',
 						true,
 					),
 					startDate: {
 						type: 'datePicker',
 						attr: 'startDate',
 						hidden: 'data.useStartDate !== true',
-						label: translate('Start date (optional)', 'Startdatum (optional)'),
+						label: translate('Activate from (optional)', 'Aktivieren ab (optional)'),
 						help: translate(
-							'Start the heating schedule on this date when it is not active.',
-							'Heizplan an diesem Datum aktivieren, wenn er nicht aktiv ist.',
+							'Activate the heating schedule from this date when it is not active. The two dates are independent and may be in any order.',
+							'Heizplan ab diesem Datum aktivieren, wenn er nicht aktiv ist. Beide Daten sind unabhängig und dürfen in beliebiger Reihenfolge liegen.',
 						),
 						default: '',
 						newLine: false,
@@ -344,17 +344,17 @@ function scheduleConfigurationForm(): any {
 					useEndDate: datePickerActivationControl(
 						'endDate',
 						'useEndDate',
-						'Enable end date',
-						'Enddatum aktivieren',
+						'Deactivate from',
+						'Deaktivieren ab',
 					),
 					endDate: {
 						type: 'datePicker',
 						attr: 'endDate',
 						hidden: 'data.useEndDate !== true',
-						label: translate('End date (optional)', 'Enddatum (optional)'),
+						label: translate('Deactivate from (optional)', 'Deaktivieren ab (optional)'),
 						help: translate(
-							'Deactivate the heating schedule on this date when it is active.',
-							'Heizplan an diesem Datum deaktivieren, wenn er aktiv ist.',
+							'Deactivate the heating schedule from this date when it is active. The two dates are independent and may be in any order.',
+							'Heizplan ab diesem Datum deaktivieren, wenn er aktiv ist. Beide Daten sind unabhängig und dürfen in beliebiger Reihenfolge liegen.',
 						),
 						default: '',
 						newLine: false,
@@ -366,7 +366,7 @@ function scheduleConfigurationForm(): any {
 					},
 				},
 			},
-			setpointMappings: {
+			b_setpointMappings: {
 				type: 'panel',
 				label: translate('Setpoint / feedback mappings', 'Sollwert-/Rückmelde-Zuordnungen'),
 				items: {
@@ -469,7 +469,7 @@ function scheduleConfigurationForm(): any {
 					},
 				},
 			},
-			heatingModes: {
+			c_heatingModes: {
 				type: 'panel',
 				label: translate('Heating modes', 'Heizmodi'),
 				items: {
@@ -547,18 +547,18 @@ function scheduleConfigurationForm(): any {
 							datePickerActivationControl(
 								'startDate',
 								'useStartDate',
-								'Enable start date',
-								'Startdatum aktivieren',
+								'Activate from',
+								'Aktivieren ab',
 								true,
 							),
 							{
 								type: 'datePicker',
 								attr: 'startDate',
 								hidden: 'data.useStartDate !== true',
-								label: translate('Start date (optional)', 'Startdatum (optional)'),
+								label: translate('Activate from (optional)', 'Aktivieren ab (optional)'),
 								help: translate(
-									'Activate this heating mode on this date when it is not active.',
-									'Heizmodus an diesem Datum aktivieren, wenn er nicht aktiv ist.',
+									'Activate this heating mode from this date when it is not active. The two dates are independent and may be in any order.',
+									'Heizmodus ab diesem Datum aktivieren, wenn er nicht aktiv ist. Beide Daten sind unabhängig und dürfen in beliebiger Reihenfolge liegen.',
 								),
 								default: '',
 								newLine: false,
@@ -568,20 +568,15 @@ function scheduleConfigurationForm(): any {
 								lg: 4,
 								xl: 4,
 							},
-							datePickerActivationControl(
-								'endDate',
-								'useEndDate',
-								'Enable end date',
-								'Enddatum aktivieren',
-							),
+							datePickerActivationControl('endDate', 'useEndDate', 'Deactivate from', 'Deaktivieren ab'),
 							{
 								type: 'datePicker',
 								attr: 'endDate',
 								hidden: 'data.useEndDate !== true',
-								label: translate('End date (optional)', 'Enddatum (optional)'),
+								label: translate('Deactivate from (optional)', 'Deaktivieren ab (optional)'),
 								help: translate(
-									'Deactivate this heating mode on this date when it is active.',
-									'Heizmodus an diesem Datum deaktivieren, wenn er aktiv ist.',
+									'Deactivate this heating mode from this date when it is active. The two dates are independent and may be in any order.',
+									'Heizmodus ab diesem Datum deaktivieren, wenn er aktiv ist. Beide Daten sind unabhängig und dürfen in beliebiger Reihenfolge liegen.',
 								),
 								default: '',
 								newLine: false,
@@ -711,6 +706,24 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				this.log.error(`Device Manager action ${actionId} failed: ${message}`);
+				const context = args.find(
+					argument =>
+						typeof argument === 'object' &&
+						argument !== null &&
+						typeof (argument as { showMessage?: unknown }).showMessage === 'function',
+				) as ActionContext | undefined;
+				if (context) {
+					try {
+						await context.showMessage(
+							translate(
+								`The heating schedule could not be saved: ${message}`,
+								`Der Heizplan konnte nicht gespeichert werden: ${message}`,
+							),
+						);
+					} catch (notificationError) {
+						this.log.warn(`Could not show Device Manager error message: ${String(notificationError)}`);
+					}
+				}
 				return { error: { code: 500, message } };
 			}
 		};
@@ -771,10 +784,8 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 				const numericStateNames = await this.adapter.getNumericStateNames();
 				const formOptions = {
 					title: translate('Configure heating schedule', 'Heizplan konfigurieren'),
-					dialogName: `heating-schedule-${schedule.id}`,
 					data: scheduleConfigurationData(schedule, numericStateNames),
 					buttons: ['apply', 'cancel'] as ('apply' | 'cancel')[],
-					ignoreApplyDisabled: true,
 					applyDisabledRule: numericStateConfigurationDisabledRule(Object.keys(numericStateNames)),
 				};
 				const data = await context.showForm(scheduleConfigurationForm(), formOptions);
@@ -1182,13 +1193,43 @@ export class HeatingSchedulerManagement extends DeviceManagement<HeatingSchedule
 		return info;
 	}
 
+	/**
+	 * Creates the JSON-safe device information used by the backend-to-GUI update.
+	 * The normal action response is converted by dm-utils; direct GUI commands
+	 * need the same conversion because handler functions cannot be serialized.
+	 *
+	 * @param schedule schedule to serialize
+	 */
+	private deviceInfoForGui(schedule: HeatingSchedule): DeviceInfo<'api'> {
+		const info = this.deviceInfo(schedule) as unknown as DeviceInfo<'api'>;
+		return {
+			...info,
+			actions: info.actions?.map(action => {
+				const guiAction = { ...action } as Record<string, unknown>;
+				delete guiAction.handler;
+				guiAction.disabled = false;
+				return guiAction;
+			}) as DeviceInfo<'api'>['actions'],
+			controls: info.controls?.map(control => {
+				const guiControl = { ...control } as Record<string, unknown>;
+				delete guiControl.handler;
+				delete guiControl.getStateHandler;
+				return guiControl;
+			}) as DeviceInfo<'api'>['controls'],
+		};
+	}
+
 	private async refreshDeviceInGui(scheduleId: string): Promise<ActionResult> {
 		const schedule = this.adapter.getHeatingSchedules().find(candidate => candidate.id === scheduleId);
 		if (!schedule) {
 			return { refresh: 'devices' };
 		}
 		this.refreshDeviceCache();
-		await this.sendCommandToGui({ command: 'infoUpdate', deviceId: schedule.id });
+		await this.sendCommandToGui({
+			command: 'infoUpdate',
+			deviceId: schedule.id,
+			info: this.deviceInfoForGui(schedule),
+		});
 		return { refresh: 'devices' };
 	}
 }
