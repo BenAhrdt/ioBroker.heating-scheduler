@@ -2,6 +2,12 @@
 
 There are no older published versions yet. The current development changes are
 listed in the [README changelog](README.md#changelog).
+## 0.1.2 (2026-11-02)
+
+- Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.
+- Improved device-list refresh compatibility after saving or renaming a schedule.
+- Added live setpoint and feedback values to schedule cards and a direct start button for every heating mode.
+
 ## 0.1.1 (2026-11-02)
 
 - Updated the adapter logo and README documentation.

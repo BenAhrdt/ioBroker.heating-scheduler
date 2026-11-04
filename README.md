@@ -54,7 +54,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.7 (2026-11-04)
 
 - Heating modes now support non-negative integer priorities. Automatic evaluation and the enabled-mode matching actions select the highest-priority applicable enabled mode; the broader matching action also uses priority but intentionally ignores enable switches. Manual per-mode application remains an explicit override.
 - Device Manager priority fields, mode-level Apply buttons, and the schedule-level enabled-mode Apply button are shown only when the adapter's Device Manager expert mode is enabled.
@@ -83,12 +83,6 @@ Heating modes remain children of their schedule. There is no migration from earl
 - A second schedule button applies only the heating mode that automation would currently select from the enabled modes; it is hidden when the schedule or all modes are disabled and otherwise does nothing if no enabled mode matches.
 - Heating-mode action buttons display the target temperature in a consistently sized outlined button; central schedule actions use outlined setpoint labels.
 - Schedule and heating-mode cards show their optional automatic activation details in a compact secondary line.
-
-### 0.1.2 (2026-11-02)
-
-- Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.
-- Improved device-list refresh compatibility after saving or renaming a schedule.
-- Added live setpoint and feedback values to schedule cards and a direct start button for every heating mode.
 
 Older changes are kept in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

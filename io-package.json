@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "heating-scheduler",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "news": {
+      "0.1.7": {
+        "en": "Heating modes now support non-negative integer priorities. Automatic evaluation and the enabled-mode matching actions select the highest-priority applicable enabled mode; the broader matching action also uses priority but intentionally ignores enable switches. Manual per-mode application remains an explicit override.\nDevice Manager priority fields, mode-level Apply buttons, and the schedule-level enabled-mode Apply button are shown only when the adapter's Device Manager expert mode is enabled.",
+        "de": "Heizmodi unterstützen jetzt Prioritäten ohne negative Zahlen. Bei der automatischen Bewertung wird der aktivierte Modus mit der höchsten Priorität ausgewählt. Der allgemeine Abgleich verwendet ebenfalls Priorität, ignoriert aber bewusst Aktivierungsschalter. Manuelle Anwendung pro Modus bleibt explizit außer Kraft.\nDie Prioritätsfelder Gerätemanager, Anwenden auf Modusebene und Anwenden auf Zeitplanebene werden nur angezeigt, wenn der Expertenmodus des Adapters aktiviert ist.",
+        "ru": "Режимы нагрева теперь поддерживают неотрицательные целочисленные приоритеты. При автоматической оценке и сопоставлении включенных режимов выбирается наиболее приоритетный из всех включенных режимов; более широкое действие сопоставления также использует приоритет, но намеренно игнорирует переключатели включения. Приложение, выполняемое вручную для каждого режима, по-прежнему явно отменяется.\nПоля приоритетов диспетчера устройств, кнопки «Применить» на уровне режима и кнопка «Применить» в режиме «Применить» на уровне расписания отображаются только тогда, когда включен экспертный режим диспетчера устройств адаптера.",
+        "pt": "Os modos de aquecimento agora suportam números não negativos. A avaliação automática e as ações de correspondência do modo ativado selecionam o modo ativado de maior prioridade; a ação mais ampla também usa prioridade, mas ignora intencionalmente as opções. A aplicação manual por modo permanece explícita.\nOs campos prioritários, os botões Aplicar no nível do modo e o botão Aplicar no nível do agendamento são exibidos somente quando o modo avançado do adaptador está ativado.",
+        "nl": "De verwarmingsmodi ondersteunen nu niet-negatieve gehele prioriteiten. Automatische evaluatie en de aanpassingsacties in de ingeschakelde modus selecteren de toepasselijke ingeschakelde modus met de hoogste prioriteit; de bredere aanpassingsactie maakt ook gebruik van prioriteit, maar negeert opzettelijk activeringsschakelaars. Handmatige toepassing per modus blijft een expliciete override.\nPrioriteitsvelden van Apparaatbeheer, Toepassingsknoppen op modusniveau en de knop Toepassen op planningsniveau worden alleen weergegeven als de Expertmodus Apparaatbeheer van de adapter is ingeschakeld.",
+        "fr": "Les modes de chauffage ont désormais des entiers non négatifs. L'évaluation automatique et les actions de correspondance en mode activé sélectionnent le mode activé applicable le plus prioritaire ; l'action de correspondance plus large utilise également la priorité mais ignore intentionnellement les boutons d'activation. L'application manuelle par mode reste une option explicite.\nLes champs prioritaires du Device Manager, les boutons Appliquer au niveau du mode et le bouton Appliquer au mode activé au niveau du planning ne s'affichent que lorsque le mode expert Device Manager est activé.",
+        "it": "Le modalità Heating ora supportano priorità non negative. La valutazione automatica e le azioni di abbinamento abilitate selezionano la modalità abilitata con la massima priorità applicabile; l'azione più ampia usa la priorità ma ignora intenzionalmente i tasti di attivazione. L'uso manuale per modalità rimane un override esplicito.\nI campi di priorità di Device Manager, i pulsanti Applica a livello di modalità e Applica a livello di pianificazione sono mostrati solo se è abilitata la modalità Device Manager.",
+        "es": "Los modos de calefacción ahora admiten números enteros no negativos. La evaluación automática y las acciones de coincidencia del modo activado seleccionan el modo activado aplicable de mayor prioridad; la acción de coincidencia más amplia también utiliza la prioridad, pero ignora intencionadamente los conmutadores. La aplicación manual por modo sigue siendo una anulación explícita.\nLos campos de prioridad de Device Manager, los botones Aplicar a nivel de modo y el botón Aplicar a nivel de programación solo aparecen cuando el modo experto de Device Manager del adaptador está activado.",
+        "pl": "Tryby ogrzewania obsługują teraz nieujemne priorytety całkowite. Automatyczna ocena i działania dopasowywania w trybie włączonym wybierają odpowiedni tryb włączony o najwyższym priorytecie; szersza akcja dopasowywania również wykorzystuje priorytet, ale celowo ignoruje przełączniki włączania. Aplikacja ręczna dla poszczególnych trybów pozostaje wyraźnym nadpisaniem.\nPola priorytetów Menedżera urządzeń, przyciski Zastosuj na poziomie trybu i przycisk Zastosuj tryb włączenia na poziomie harmonogramu są wyświetlane tylko wtedy, gdy włączony jest tryb ekspercki Menedżera urządzeń adaptera.",
+        "uk": "Режими опалення тепер підтримують невід'ємні цілі пріоритети. Автоматичне оцінювання та дії узгодження увімкненого режиму вибирають найбільш пріоритетний застосовний увімкнений режим; ширша дія відповідності також використовує пріоритет, але навмисно ігнорує перемикачі включення. Ручна програма для кожного режиму залишається явним перевизначенням.\nПоля пріоритету Диспетчера пристроїв, кнопки «Застосувати» на рівні режиму та кнопка «Застосувати» на рівні розкладу відображаються лише тоді, коли ввімкнено експертний режим диспетчера пристроїв адаптера.",
+        "zh-cn": "加热模式现在支持非负整数优先级。自动评估和启用模式匹配操作会选择优先级最高的适用启用模式；更广泛的匹配操作也使用优先级，但故意忽略启用开关。手动每模式应用程序仍然是明确的替代方案。\n只有在启用适配器的设备管理器专家模式时，才会显示设备管理器优先级字段、模式级应用按钮和计划级别的启用模式 “应用” 按钮。"
+      },
       "0.1.6": {
         "en": "Activation dates are labeled \"Activate from\" / \"Aktivieren ab\" and \"Deactivate from\" / \"Deaktivieren ab\"; they are independent switches and may be entered in either order. Saving errors are shown explicitly, and Device Manager cards are updated directly after a successful save.",
         "de": "Die Aktivierungsdaten sind mit „Aktivieren ab“ und „Deaktivieren ab“ beschriftet; es sind unabhängige Schalter, die in beliebiger Reihenfolge eingegeben werden können. Speicherfehler werden explizit angezeigt und Device-Manager-Karten werden sofort aktualisiert.",
@@ -80,19 +93,6 @@
         "pl": "Zaktualizowano logo adaptera i dokumentację README.\nPrzygotowano automatyczne publikowanie npm dla tagów wersji za pomocą GitHub Actions i npm Trusted Publishing.",
         "uk": "Оновлено логотип адаптера і документацію README.\nПідготовлено автоматичну публікацію npm для тегів версій через дії GitHub та npm Trusted Publishing.",
         "zh-cn": "更新了适配器徽标和自述文件文档。\n通过 GitHub Actions 和 npm 可信发布为版本标签准备了自动 npm 发布功能。"
-      },
-      "0.0.1": {
-        "en": "initial release",
-        "de": "Erstveröffentlichung",
-        "ru": "Начальная версия",
-        "pt": "lançamento inicial",
-        "nl": "Eerste uitgave",
-        "fr": "Première version",
-        "it": "Versione iniziale",
-        "es": "Versión inicial",
-        "pl": "Pierwsze wydanie",
-        "uk": "Початкова версія",
-        "zh-cn": "首次出版"
       }
     },
     "titleLang": {
