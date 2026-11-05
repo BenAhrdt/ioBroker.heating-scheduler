@@ -2,6 +2,17 @@
 
 There are no older published versions yet. The current development changes are
 listed in the [README changelog](README.md#changelog).
+## 0.1.3 (2026-11-03)
+
+- Updated repository validation, CI workflows and translations after the adapter check.
+- Added optional heating-system activation dates and refined the Device Manager configuration controls.
+- New heating schedules now use the smallest free technical schedule number.
+- Device cards are reassigned through a direct Device Manager update after structural schedule changes.
+- A central schedule button can apply the most recent matching heating mode for the current time and weekday.
+- A second schedule button applies only the heating mode that automation would currently select from the enabled modes; it is hidden when all modes are disabled and otherwise does nothing if no enabled mode matches, even when the schedule itself is disabled.
+- Heating-mode action buttons display the target temperature in a consistently sized outlined button; central schedule actions use outlined setpoint labels.
+- Schedule and heating-mode cards show their optional automatic activation details in a compact secondary line.
+
 ## 0.1.2 (2026-11-02)
 
 - Added radiator and underfloor-heating selection with type-specific Device Manager colors and icons.
