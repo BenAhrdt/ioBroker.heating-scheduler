@@ -41,6 +41,9 @@ The adapter uses schema version 3. A schedule is represented by a valid ioBroker
         ├── applyEnabledMatching
         ├── applyEnabledModeMatching
         ├── setpointMappings
+        │   └── mapping_001
+        │       ├── feedbackMonitoringWhenScheduleEnabled
+        │       └── feedbackMonitoringWhenScheduleDisabled
         └── heatingModes
             └── mode_001
 
@@ -54,6 +57,12 @@ Heating modes remain children of their schedule. There is no migration from earl
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+
+### **WORK IN PROGRESS**
+
+- Automatic schedule evaluation now runs at startup, after relevant state or configuration changes, and at the next scheduled mode time or local day boundary. It compares the current setpoint and writes only when the selected mode requires a different value.
+- Feedback monitoring is configured independently for each setpoint/feedback mapping. `feedbackMonitoringWhenScheduleEnabled` and `feedbackMonitoringWhenScheduleDisabled` decide whether the mapping is monitored in each schedule state; both default to enabled for mappings with a feedback state and are shown only in the configuration dialog's expert mode.
+
 ### 0.1.7 (2026-11-04)
 
 - Heating modes now support non-negative integer priorities. Automatic evaluation and the enabled-mode matching actions select the highest-priority applicable enabled mode; the broader matching action also uses priority but intentionally ignores enable switches. Manual per-mode application remains an explicit override.
@@ -80,7 +89,7 @@ Heating modes remain children of their schedule. There is no migration from earl
 - New heating schedules now use the smallest free technical schedule number.
 - Device cards are reassigned through a direct Device Manager update after structural schedule changes.
 - A central schedule button can apply the most recent matching heating mode for the current time and weekday.
-- A second schedule button applies only the heating mode that automation would currently select from the enabled modes; it is hidden when the schedule or all modes are disabled and otherwise does nothing if no enabled mode matches.
+- A second schedule button applies only the heating mode that automation would currently select from the enabled modes; it is hidden when all modes are disabled and otherwise does nothing if no enabled mode matches, even when the schedule itself is disabled.
 - Heating-mode action buttons display the target temperature in a consistently sized outlined button; central schedule actions use outlined setpoint labels.
 - Schedule and heating-mode cards show their optional automatic activation details in a compact secondary line.
 

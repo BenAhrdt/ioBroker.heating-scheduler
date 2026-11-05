@@ -113,6 +113,15 @@ function numericStateValidator(field, optional) {
 function numericStateConfigurationDisabledRule(validNumericStateIds) {
   return `(() => { const ids = ${JSON.stringify(validNumericStateIds)}; const text = value => value instanceof Date ? value.toISOString() : typeof value === 'string' ? value.trim() : (value && typeof value === 'object' ? String(value.value || value.id || '').trim() : ''); const date = value => { const raw = text(value); if (!raw) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return null; const normalized = raw.length === 10 && raw[4] === '-' && raw[7] === '-' ? raw : String(parsed.getFullYear()).padStart(4, '0') + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0'); return /^\\d{4}-\\d{2}-\\d{2}$/.test(normalized) && new Date(normalized + 'T00:00:00Z').toISOString().slice(0, 10) === normalized ? normalized : null; }; const mappings = Array.isArray(data.setpointMappings) ? data.setpointMappings : []; const modes = Array.isArray(data.heatingModes) ? data.heatingModes : []; const scheduleStart = date(data.startDate); const scheduleEnd = date(data.endDate); return mappings.some(mapping => { const setpoint = text(mapping && mapping.setpointStateId); const feedback = text(mapping && mapping.feedbackStateId); return !ids.includes(setpoint) || (feedback !== '' && !ids.includes(feedback)); }) || scheduleStart === null || scheduleEnd === null || modes.some(mode => { const temperature = Number(mode && mode.temperature); const priority = Number(mode && mode.priority); const start = date(mode && mode.startDate); const end = date(mode && mode.endDate); return !String(mode && mode.name || '').trim() || !Array.isArray(mode && mode.weekdays) || !mode.weekdays.length || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(mode && mode.startTime || '')) || start === null || end === null || !Number.isFinite(temperature) || temperature < 0 || temperature > 50 || Math.round(temperature * 10) !== temperature * 10 || !Number.isSafeInteger(priority) || priority < 0; }); })()`;
 }
+function feedbackStateAvailableExpression() {
+  return "String(data.feedbackStateId?.value || data.feedbackStateId?.id || data.feedbackStateId || '').trim() !== ''";
+}
+function feedbackMonitoringSelectedExpression() {
+  return "data.feedbackMonitoringWhenScheduleEnabled === true || data.feedbackMonitoringWhenScheduleDisabled === true";
+}
+function feedbackMonitoringFieldsHiddenExpression() {
+  return `!(${feedbackStateAvailableExpression()}) || !(${feedbackMonitoringSelectedExpression()})`;
+}
 function mappingDisplayName(mapping, allMappings, numericStateNames) {
   const baseName = numericStateNames[mapping.setpointStateId] || mapping.setpointStateId || "Setpoint mapping";
   const hasDuplicateName = allMappings.filter(
@@ -354,6 +363,46 @@ function scheduleConfigurationForm() {
                 xl: 8
               },
               {
+                type: "checkbox",
+                attr: "feedbackMonitoringWhenScheduleEnabled",
+                label: translate(
+                  "Monitor feedback while schedule is enabled",
+                  "Feedback \xFCberwachen bei aktiviertem Heizplan"
+                ),
+                default: true,
+                hidden: `data._expertMode !== true || !(${feedbackStateAvailableExpression()})`,
+                tooltip: translate(
+                  "Compare and correct this mapping while the heating schedule is enabled",
+                  "Diese Zuordnung \xFCberwachen und korrigieren, solange der Heizplan aktiviert ist"
+                ),
+                newLine: true,
+                xs: 12,
+                sm: 6,
+                md: 4,
+                lg: 4,
+                xl: 4
+              },
+              {
+                type: "checkbox",
+                attr: "feedbackMonitoringWhenScheduleDisabled",
+                label: translate(
+                  "Monitor feedback while schedule is disabled",
+                  "Feedback \xFCberwachen bei deaktiviertem Heizplan"
+                ),
+                default: true,
+                hidden: `data._expertMode !== true || !(${feedbackStateAvailableExpression()})`,
+                tooltip: translate(
+                  "Compare and correct this mapping while the heating schedule is disabled",
+                  "Diese Zuordnung \xFCberwachen und korrigieren, solange der Heizplan deaktiviert ist"
+                ),
+                newLine: false,
+                xs: 12,
+                sm: 6,
+                md: 4,
+                lg: 4,
+                xl: 4
+              },
+              {
                 type: "select",
                 attr: "feedbackMode",
                 label: translate("Feedback mode", "R\xFCckmeldeart"),
@@ -363,6 +412,7 @@ function scheduleConfigurationForm() {
                   { value: 1, label: translate("On update", "Bei Aktualisierung") },
                   { value: 2, label: translate("Cyclic", "Zyklisch") }
                 ],
+                hidden: feedbackMonitoringFieldsHiddenExpression(),
                 newLine: true,
                 xs: 12,
                 sm: 6,
@@ -377,7 +427,7 @@ function scheduleConfigurationForm() {
                 min: 1,
                 step: 1,
                 default: 5,
-                hidden: "data.feedbackMode !== 2",
+                hidden: `data.feedbackMode !== 2 || ${feedbackMonitoringFieldsHiddenExpression()}`,
                 newLine: false,
                 xs: 12,
                 sm: 6,
@@ -395,6 +445,7 @@ function scheduleConfigurationForm() {
                 min: 1,
                 step: 1,
                 default: 3,
+                hidden: feedbackMonitoringFieldsHiddenExpression(),
                 newLine: true,
                 xs: 12,
                 sm: 6,
@@ -600,15 +651,22 @@ function scheduleConfigurationForm() {
     }
   };
 }
-function scheduleConfigurationData(schedule, numericStateNames) {
+function scheduleConfigurationData(schedule, numericStateNames, feedbackMonitoringStates = {}, expertMode = false) {
   var _a, _b;
   return {
     _validNumericStateIds: Object.keys(numericStateNames),
+    _expertMode: expertMode,
     heatingType: schedule.heatingType,
-    setpointMappings: schedule.setpointMappings.map((mapping) => ({
-      ...mapping,
-      name: mappingDisplayName(mapping, schedule.setpointMappings, numericStateNames)
-    })),
+    setpointMappings: schedule.setpointMappings.map((mapping) => {
+      var _a2, _b2, _c, _d;
+      return {
+        ...mapping,
+        _expertMode: expertMode,
+        feedbackMonitoringWhenScheduleEnabled: (_b2 = (_a2 = feedbackMonitoringStates[mapping.id]) == null ? void 0 : _a2.whenScheduleEnabled) != null ? _b2 : true,
+        feedbackMonitoringWhenScheduleDisabled: (_d = (_c = feedbackMonitoringStates[mapping.id]) == null ? void 0 : _c.whenScheduleDisabled) != null ? _d : true,
+        name: mappingDisplayName(mapping, schedule.setpointMappings, numericStateNames)
+      };
+    }),
     heatingModes: schedule.heatingModes.map((mode) => ({
       ...mode,
       weekdays: [...mode.weekdays],
@@ -774,10 +832,31 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
     const configureHandler = this.safeActionHandler(
       "configureSchedule",
       async (_id, context) => {
+        var _a;
         const numericStateNames = await this.adapter.getNumericStateNames();
+        const expertMode = ((_a = await this.adapter.getStateAsync("info.expertMode")) == null ? void 0 : _a.val) === true;
+        const feedbackMonitoringStates = Object.fromEntries(
+          await Promise.all(
+            schedule.setpointMappings.map(async (mapping) => {
+              const enabledState = await this.adapter.getStateAsync(
+                `schedules.${schedule.id}.setpointMappings.${mapping.id}.feedbackMonitoringWhenScheduleEnabled`
+              );
+              const disabledState = await this.adapter.getStateAsync(
+                `schedules.${schedule.id}.setpointMappings.${mapping.id}.feedbackMonitoringWhenScheduleDisabled`
+              );
+              return [
+                mapping.id,
+                {
+                  whenScheduleEnabled: enabledState ? enabledState.val === true : true,
+                  whenScheduleDisabled: disabledState ? disabledState.val === true : true
+                }
+              ];
+            })
+          )
+        );
         const formOptions = {
           title: translate("Configure heating schedule", "Heizplan konfigurieren"),
-          data: scheduleConfigurationData(schedule, numericStateNames),
+          data: scheduleConfigurationData(schedule, numericStateNames, feedbackMonitoringStates, expertMode),
           buttons: ["apply", "cancel"],
           applyDisabledRule: numericStateConfigurationDisabledRule(Object.keys(numericStateNames))
         };
@@ -785,14 +864,43 @@ class HeatingSchedulerManagement extends import_dm_utils.DeviceManagement {
         if (!data) {
           return { refresh: "none" };
         }
+        const submittedMappings = normalizeMappingFormRows(data.setpointMappings);
         await this.adapter.updateHeatingSchedule(schedule.id, {
           name: schedule.name,
           heatingType: getHeatingType(data),
           startDate: data.useStartDate === true ? normalizeDatePickerValue(data.startDate) : "",
           endDate: data.useEndDate === true ? normalizeDatePickerValue(data.endDate) : "",
-          setpointMappings: normalizeMappingFormRows(data.setpointMappings),
+          setpointMappings: submittedMappings,
           heatingModes: normalizeHeatingModeFormRows(data.heatingModes)
         });
+        const updatedSchedule = this.adapter.getHeatingSchedules().find((candidate) => candidate.id === schedule.id);
+        if (updatedSchedule) {
+          await Promise.all(
+            updatedSchedule.setpointMappings.map(async (mapping, index) => {
+              var _a2, _b;
+              if (!mapping.feedbackStateId) {
+                return;
+              }
+              const submitted = submittedMappings[index];
+              const submittedRecord = submitted && typeof submitted === "object" && !Array.isArray(submitted) ? submitted : void 0;
+              const existing = submittedRecord && typeof submittedRecord.id === "string" ? feedbackMonitoringStates[submittedRecord.id] : void 0;
+              await this.adapter.setStateAsync(
+                `schedules.${schedule.id}.setpointMappings.${mapping.id}.feedbackMonitoringWhenScheduleEnabled`,
+                {
+                  val: typeof (submittedRecord == null ? void 0 : submittedRecord.feedbackMonitoringWhenScheduleEnabled) === "boolean" ? submittedRecord.feedbackMonitoringWhenScheduleEnabled : (_a2 = existing == null ? void 0 : existing.whenScheduleEnabled) != null ? _a2 : true,
+                  ack: false
+                }
+              );
+              await this.adapter.setStateAsync(
+                `schedules.${schedule.id}.setpointMappings.${mapping.id}.feedbackMonitoringWhenScheduleDisabled`,
+                {
+                  val: typeof (submittedRecord == null ? void 0 : submittedRecord.feedbackMonitoringWhenScheduleDisabled) === "boolean" ? submittedRecord.feedbackMonitoringWhenScheduleDisabled : (_b = existing == null ? void 0 : existing.whenScheduleDisabled) != null ? _b : true,
+                  ack: false
+                }
+              );
+            })
+          );
+        }
         this.refreshDeviceCache();
         return this.refreshDeviceInGui(schedule.id);
       }

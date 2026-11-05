@@ -224,11 +224,12 @@ class HeatingScheduler extends utils.Adapter {
     await this.synchronizeFeedbackMonitoring(previous, this.configuration);
     if (next) {
       this.scheduleConfigurationBackup();
+      await this.evaluateAndScheduleNext();
     }
   }
   async synchronizeFeedbackMonitoring(_previous, next) {
     const nextMappings = next.schedules.flatMap(
-      (schedule) => schedule.setpointMappings.filter((mapping) => !!mapping.feedbackStateId).map((mapping) => ({ scheduleId: schedule.id, mapping }))
+      (schedule) => schedule.setpointMappings.filter((mapping) => !!mapping.setpointStateId && !!mapping.feedbackStateId).map((mapping) => ({ scheduleId: schedule.id, mapping }))
     );
     const nextMonitoredStates = new Set(
       nextMappings.flatMap((entry) => [entry.mapping.setpointStateId, entry.mapping.feedbackStateId])
@@ -301,14 +302,58 @@ class HeatingScheduler extends utils.Adapter {
     }
   }
   startScheduleTimer() {
+    this.clearScheduleTimer();
+    this.trackEventOperation("initial schedule evaluation", () => this.evaluateAndScheduleNext());
+  }
+  clearScheduleTimer() {
     if (this.scheduleTimer) {
-      this.clearInterval(this.scheduleTimer);
+      this.clearTimeout(this.scheduleTimer);
+      this.scheduleTimer = void 0;
     }
-    this.scheduleTimer = this.setInterval(
-      () => this.trackEventOperation("schedule evaluation", () => this.evaluateSchedules()),
-      3e4
-    );
-    this.trackEventOperation("initial schedule evaluation", () => this.evaluateSchedules());
+  }
+  async evaluateAndScheduleNext() {
+    this.clearScheduleTimer();
+    try {
+      await this.evaluateSchedules();
+    } finally {
+      this.scheduleNextEvaluation();
+    }
+  }
+  scheduleNextEvaluation() {
+    if (this.unloading) {
+      return;
+    }
+    this.clearScheduleTimer();
+    const now = /* @__PURE__ */ new Date();
+    const nextBoundary = this.nextScheduleBoundary(now);
+    const delay = Math.max(1e3, nextBoundary.getTime() - now.getTime());
+    this.scheduleTimer = this.setTimeout(() => {
+      this.scheduleTimer = void 0;
+      this.trackEventOperation("scheduled schedule evaluation", () => this.evaluateAndScheduleNext());
+    }, delay);
+  }
+  nextScheduleBoundary(now) {
+    let nextBoundary = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset += 1) {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, 0, 0, 0, 0);
+      const weekday = (day.getDay() + 6) % 7 + 1;
+      for (const schedule of this.configuration.schedules) {
+        for (const mode of schedule.heatingModes) {
+          if (!this.heatingModeMatchesWeekday(mode, weekday)) {
+            continue;
+          }
+          const [hours, minutes] = mode.startTime.split(":").map(Number);
+          const candidate = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, minutes, 0, 0);
+          if (candidate > now && candidate < nextBoundary) {
+            nextBoundary = candidate;
+          }
+        }
+      }
+    }
+    return nextBoundary;
+  }
+  heatingModeMatchesWeekday(mode, weekday) {
+    return mode.weekdaySelection === 0 ? true : mode.weekdaySelection === 1 ? mode.weekdays.includes(weekday) : !mode.weekdays.includes(weekday);
   }
   localDate() {
     const now = /* @__PURE__ */ new Date();
@@ -414,6 +459,10 @@ class HeatingScheduler extends utils.Adapter {
         schedule.startDate || schedule.endDate ? (0, import_configuration.isDateInActivationRange)(date, schedule.startDate, schedule.endDate, true) : true,
         `schedules.${schedule.id}.active`
       );
+      const legacyFeedbackMonitoringState = await this.getStateAsync(
+        `schedules.${schedule.id}.feedbackMonitoringEnabled`
+      );
+      const legacyFeedbackMonitoringEnabled = typeof (legacyFeedbackMonitoringState == null ? void 0 : legacyFeedbackMonitoringState.val) === "boolean" ? legacyFeedbackMonitoringState.val : void 0;
       await this.ensureRuntimeState(
         `schedules.${schedule.id}.applyMatching`,
         {
@@ -474,11 +523,12 @@ class HeatingScheduler extends utils.Adapter {
         (_b = schedule.endDate) != null ? _b : ""
       );
       const previousSchedule = previous.schedules.find((candidate) => candidate.id === schedule.id);
-      await this.synchronizeSetpointMappingObjects(schedule, previousSchedule);
+      await this.synchronizeSetpointMappingObjects(schedule, previousSchedule, legacyFeedbackMonitoringEnabled);
+      await this.delObjectAsync(`schedules.${schedule.id}.feedbackMonitoringEnabled`);
       await this.synchronizeHeatingModeObjects(schedule, previousSchedule);
     }
   }
-  async synchronizeSetpointMappingObjects(schedule, previousSchedule) {
+  async synchronizeSetpointMappingObjects(schedule, previousSchedule, legacyFeedbackMonitoringEnabled) {
     var _a, _b;
     const base = `schedules.${schedule.id}.setpointMappings`;
     if (!schedule.setpointMappings.length) {
@@ -531,6 +581,42 @@ class HeatingScheduler extends utils.Adapter {
       } else if ((_a = previousSchedule == null ? void 0 : previousSchedule.setpointMappings.find((entry) => entry.id === mapping.id)) == null ? void 0 : _a.feedbackStateId) {
         await this.delObjectAsync(`${mappingBase}.feedbackStateId`);
       }
+      if (!mapping.feedbackStateId) {
+        await this.delObjectAsync(`${mappingBase}.feedbackMonitoringWhenScheduleEnabled`);
+        await this.delObjectAsync(`${mappingBase}.feedbackMonitoringWhenScheduleDisabled`);
+        await this.delObjectAsync(`${mappingBase}.feedbackMode`);
+        await this.delObjectAsync(`${mappingBase}.feedbackIntervalMinutes`);
+        await this.delObjectAsync(`${mappingBase}.deviationCountBeforeWrite`);
+        continue;
+      }
+      await this.ensureRuntimeState(
+        `${mappingBase}.feedbackMonitoringWhenScheduleEnabled`,
+        {
+          name: {
+            en: "Monitor feedback while schedule is enabled",
+            de: "Feedback \xFCberwachen bei aktiviertem Heizplan"
+          },
+          type: "boolean",
+          role: "switch",
+          read: true,
+          write: true
+        },
+        legacyFeedbackMonitoringEnabled != null ? legacyFeedbackMonitoringEnabled : true
+      );
+      await this.ensureRuntimeState(
+        `${mappingBase}.feedbackMonitoringWhenScheduleDisabled`,
+        {
+          name: {
+            en: "Monitor feedback while schedule is disabled",
+            de: "Feedback \xFCberwachen bei deaktiviertem Heizplan"
+          },
+          type: "boolean",
+          role: "switch",
+          read: true,
+          write: true
+        },
+        legacyFeedbackMonitoringEnabled != null ? legacyFeedbackMonitoringEnabled : true
+      );
       await this.ensureConfigurationState(
         `${mappingBase}.feedbackMode`,
         {
@@ -782,7 +868,8 @@ class HeatingScheduler extends utils.Adapter {
           }
           await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
           this.lastAppliedModes.delete(scheduleId);
-          await this.evaluateSchedules();
+          this.resetFeedbackDeviationsForSchedule(scheduleId);
+          await this.evaluateAndScheduleNext();
           return;
         }
         if (parts[2] === "applyMatching") {
@@ -840,6 +927,16 @@ class HeatingScheduler extends utils.Adapter {
         const mapping = (_a = this.configuration.schedules.find((schedule) => schedule.id === scheduleId)) == null ? void 0 : _a.setpointMappings.find((candidate) => candidate.id === mappingId);
         if (!mapping) {
           throw new Error(`Setpoint mapping ${mappingId} does not exist on schedule ${scheduleId}`);
+        }
+        if ((field2 === "feedbackMonitoringWhenScheduleEnabled" || field2 === "feedbackMonitoringWhenScheduleDisabled") && parts.length === 5) {
+          if (typeof state.val !== "boolean") {
+            throw new Error("The feedback monitoring state must be boolean");
+          }
+          await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
+          if (!state.val) {
+            this.feedbackDeviationCounts.delete(this.feedbackKey(scheduleId, mappingId));
+          }
+          return;
         }
         if (field2 === "setpointStateId" || field2 === "feedbackStateId") {
           const stateId = typeof state.val === "string" ? state.val.trim() : "";
@@ -908,7 +1005,7 @@ class HeatingScheduler extends utils.Adapter {
         }
         await this.setStateChangedAsync(relativeId, { val: state.val, ack: true });
         this.lastAppliedModes.delete(scheduleId);
-        await this.evaluateSchedules();
+        await this.evaluateAndScheduleNext();
         return;
       }
       if (field === "applyNow" && parts.length === 5) {
@@ -1000,6 +1097,12 @@ class HeatingScheduler extends utils.Adapter {
           this.feedbackDeviationCounts.delete(this.feedbackKey(schedule.id, mapping.id));
         }
       }
+    }
+  }
+  resetFeedbackDeviationsForSchedule(scheduleId) {
+    const schedule = this.configuration.schedules.find((candidate) => candidate.id === scheduleId);
+    for (const mapping of (schedule == null ? void 0 : schedule.setpointMappings) || []) {
+      this.feedbackDeviationCounts.delete(this.feedbackKey(scheduleId, mapping.id));
     }
   }
   async updateConfigurationFromState(scheduleId, update) {
@@ -1126,7 +1229,8 @@ class HeatingScheduler extends utils.Adapter {
     }
     return number;
   }
-  async executeHeatingMode(scheduleId, modeId) {
+  async executeHeatingMode(scheduleId, modeId, compareCurrentSetpoints = false) {
+    var _a;
     const schedule = this.configuration.schedules.find((candidate) => candidate.id === scheduleId);
     const mode = schedule == null ? void 0 : schedule.heatingModes.find((candidate) => candidate.id === modeId);
     if (!schedule || !mode) {
@@ -1138,6 +1242,17 @@ class HeatingScheduler extends utils.Adapter {
     }
     for (const mapping of schedule.setpointMappings) {
       try {
+        if (compareCurrentSetpoints) {
+          const currentSetpoint = this.asNumericStateValue(
+            (_a = await this.getForeignStateAsync(mapping.setpointStateId)) == null ? void 0 : _a.val
+          );
+          if (currentSetpoint !== void 0 && this.sameNumber(currentSetpoint, mode.temperature)) {
+            this.log.debug(
+              `Skipped unchanged setpoint ${mapping.setpointStateId} at ${scheduleId}/${modeId}`
+            );
+            continue;
+          }
+        }
         await this.writeSetpointForMapping(scheduleId, mapping, mode.temperature, `${scheduleId}/${modeId}`);
       } catch (error) {
         this.log.error(
@@ -1204,6 +1319,14 @@ class HeatingScheduler extends utils.Adapter {
   feedbackKey(scheduleId, mappingId) {
     return `${scheduleId}:${mappingId}`;
   }
+  feedbackMonitoringStateId(scheduleId, mappingId, scheduleEnabled) {
+    return `schedules.${scheduleId}.setpointMappings.${mappingId}.${scheduleEnabled ? "feedbackMonitoringWhenScheduleEnabled" : "feedbackMonitoringWhenScheduleDisabled"}`;
+  }
+  async isFeedbackMonitoringEnabled(scheduleId, mappingId, scheduleEnabled) {
+    var _a, _b;
+    const enabled = scheduleEnabled != null ? scheduleEnabled : ((_a = await this.getStateAsync(`schedules.${scheduleId}.enabled`)) == null ? void 0 : _a.val) === true;
+    return ((_b = await this.getStateAsync(this.feedbackMonitoringStateId(scheduleId, mappingId, enabled))) == null ? void 0 : _b.val) === true;
+  }
   async handleFeedbackStateChange(id, state) {
     var _a;
     const feedbackMappings = [];
@@ -1212,13 +1335,14 @@ class HeatingScheduler extends utils.Adapter {
       if (!mappings.length) {
         continue;
       }
-      if (((_a = await this.getStateAsync(`schedules.${schedule.id}.enabled`)) == null ? void 0 : _a.val) !== true) {
-        for (const mapping of mappings) {
+      const scheduleEnabled = ((_a = await this.getStateAsync(`schedules.${schedule.id}.enabled`)) == null ? void 0 : _a.val) === true;
+      for (const mapping of mappings) {
+        if (!await this.isFeedbackMonitoringEnabled(schedule.id, mapping.id, scheduleEnabled)) {
           this.feedbackDeviationCounts.delete(this.feedbackKey(schedule.id, mapping.id));
+          continue;
         }
-        continue;
+        feedbackMappings.push({ scheduleId: schedule.id, mapping });
       }
-      feedbackMappings.push(...mappings.map((mapping) => ({ scheduleId: schedule.id, mapping })));
     }
     if (!feedbackMappings.length) {
       return;
@@ -1263,13 +1387,12 @@ class HeatingScheduler extends utils.Adapter {
     return state.ts !== void 0 ? `ts:${state.ts}` : `value:${typeof state.val === "object" ? JSON.stringify(state.val) : String(state.val)}`;
   }
   async checkCyclicFeedback(scheduleId, mappingId) {
-    var _a;
     const schedule = this.configuration.schedules.find((candidate) => candidate.id === scheduleId);
     const mapping = schedule == null ? void 0 : schedule.setpointMappings.find((candidate) => candidate.id === mappingId);
     if (!(mapping == null ? void 0 : mapping.feedbackStateId) || mapping.feedbackMode !== 2) {
       return;
     }
-    if (((_a = await this.getStateAsync(`schedules.${scheduleId}.enabled`)) == null ? void 0 : _a.val) !== true) {
+    if (!await this.isFeedbackMonitoringEnabled(scheduleId, mappingId)) {
       this.feedbackDeviationCounts.delete(this.feedbackKey(scheduleId, mappingId));
       return;
     }
@@ -1282,8 +1405,7 @@ class HeatingScheduler extends utils.Adapter {
     await this.evaluateFeedback(scheduleId, mapping, this.feedbackKey(scheduleId, mappingId), currentValue, true);
   }
   async evaluateFeedback(scheduleId, mapping, key, currentValue, countDeviation) {
-    const scheduleEnabled = await this.getStateAsync(`schedules.${scheduleId}.enabled`);
-    if ((scheduleEnabled == null ? void 0 : scheduleEnabled.val) !== true) {
+    if (!await this.isFeedbackMonitoringEnabled(scheduleId, mapping.id)) {
       this.feedbackDeviationCounts.delete(key);
       return;
     }
@@ -1352,7 +1474,7 @@ class HeatingScheduler extends utils.Adapter {
         { heatingModes: enabledModes },
         weekday,
         minutesSinceMidnight,
-        true
+        false
       );
       if (!mode) {
         this.lastAppliedModes.delete(schedule.id);
@@ -1362,7 +1484,7 @@ class HeatingScheduler extends utils.Adapter {
       if (this.lastAppliedModes.get(schedule.id) === executionKey) {
         continue;
       }
-      await this.executeHeatingMode(schedule.id, mode.id);
+      await this.executeHeatingMode(schedule.id, mode.id, true);
       this.lastAppliedModes.set(schedule.id, executionKey);
     }
   }
@@ -1458,7 +1580,7 @@ class HeatingScheduler extends utils.Adapter {
       this.configurationBackupTimer = void 0;
     }
     if (this.scheduleTimer) {
-      this.clearInterval(this.scheduleTimer);
+      this.clearTimeout(this.scheduleTimer);
       this.scheduleTimer = void 0;
     }
     if (this.feedbackPollTimer) {
